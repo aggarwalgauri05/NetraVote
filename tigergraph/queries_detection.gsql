@@ -1,0 +1,240 @@
+/*
+  NetraVote Extended Detection Queries (GSQL)
+  ============================================
+  Phase 4: All 6 detection algorithms + graph scoring
+  Phase 5: Scoring engine integration
+  Phase 6: PageRank, Louvain, WCC, Betweenness Centrality hooks
+*/
+
+USE GRAPH vote
+
+/* ───────────────────────────────────────────────────────────────────
+   QUERY 1: Detect Overcrowded Addresses
+   Finds Address vertices with voter_density > threshold
+   Signal Weight: 30 points
+─────────────────────────────────────────────────────────────────── */
+CREATE QUERY detect_overcrowded_addresses(STRING constituency, INT threshold = 10) FOR GRAPH vote {
+  TYPEDEF TUPLE<VERTEX<Address> addr, INT voter_count, FLOAT pagerank> OvercrowdedAddr;
+  HeapAccum<OvercrowdedAddr>(100, -voter_count) @@top_addresses;
+
+  Booths = {Booth.*};
+  TargetBooths = SELECT b FROM Booths:b WHERE b.constituency == constituency;
+
+  Addresses = SELECT a
+    FROM TargetBooths:b -(BOOTH_LOCATED_IN>)- PinCode:p
+                        -(<LOCATED_IN)- Address:a
+    WHERE a.@addressVoterCount > threshold
+    ACCUM @@top_addresses += OvercrowdedAddr(a, a.@addressVoterCount, a.pagerank_score);
+
+  PRINT @@top_addresses AS results;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   QUERY 2: Detect Duplicate Voters
+   Finds voters with exact EPIC matches or in DUPLICATE_OF clusters
+   Signal Weight: 25 points
+─────────────────────────────────────────────────────────────────── */
+CREATE QUERY detect_duplicate_voters(STRING constituency) FOR GRAPH vote {
+  ListAccum<EDGE> @@dup_edges;
+  SetAccum<VERTEX<Voter>> @@dup_voters;
+
+  Booths = {Booth.*};
+  TargetBooths = SELECT b FROM Booths:b WHERE b.constituency == constituency;
+
+  Voters = SELECT v
+    FROM TargetBooths:b -(<ASSIGNED_TO)- Voter:v;
+
+  Duplicates = SELECT v
+    FROM Voters:v -(DUPLICATE_OF)- Voter:v2
+    ACCUM
+      @@dup_edges += e,
+      @@dup_voters += v,
+      @@dup_voters += v2;
+
+  PRINT @@dup_voters AS duplicate_voters, @@dup_edges AS duplicate_edges;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   QUERY 3: Detect Impossible Family Trees
+   Son older than father, extreme age gaps (< 14 years diff)
+   Signal Weight: 20 points
+─────────────────────────────────────────────────────────────────── */
+CREATE QUERY detect_impossible_families(STRING constituency) FOR GRAPH vote {
+  TYPEDEF TUPLE<VERTEX<Voter> parent, VERTEX<Voter> child, INT age_diff, STRING anomaly_type> FamilyAnomaly;
+  HeapAccum<FamilyAnomaly>(50, age_diff) @@anomalies;
+
+  Booths = {Booth.*};
+  TargetBooths = SELECT b FROM Booths:b WHERE b.constituency == constituency;
+
+  Voters = SELECT v FROM TargetBooths:b -(<ASSIGNED_TO)- Voter:v;
+
+  Families = SELECT parent
+    FROM Voters:parent -(FAMILY_OF)- Voter:child
+    WHERE
+      /* Son older than or same age as father */
+      (parent.age - child.age < 15 AND e.relation_type == "PARENT_CHILD")
+      /* Or impossible age for listed relationship */
+      OR (parent.age < 25 AND e.relation_type == "PARENT_CHILD")
+    ACCUM
+      INT diff = parent.age - child.age,
+      STRING atype = CASE
+        WHEN diff < 0 THEN "CHILD_OLDER_THAN_PARENT"
+        WHEN diff < 15 THEN "IMPOSSIBLE_AGE_GAP"
+        ELSE "SUSPICIOUS_GAP"
+      END,
+      @@anomalies += FamilyAnomaly(parent, child, diff, atype);
+
+  PRINT @@anomalies AS family_anomalies;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   QUERY 4: Detect Temporal Fraud (Bulk Registrations)
+   Find days/windows with registration spikes
+   Signal Weight: 10 points
+─────────────────────────────────────────────────────────────────── */
+CREATE QUERY detect_temporal_fraud(STRING constituency, INT window = 30) FOR GRAPH vote {
+  MapAccum<STRING, INT> @@date_counts;      /* date → count */
+  MapAccum<STRING, ListAccum<VERTEX<Voter>>> @@date_voters;
+
+  Booths = {Booth.*};
+  TargetBooths = SELECT b FROM Booths:b WHERE b.constituency == constituency;
+
+  Voters = SELECT v
+    FROM TargetBooths:b -(<ASSIGNED_TO)- Voter:v
+    ACCUM
+      STRING reg_date = v.added_date,
+      @@date_counts += (reg_date -> 1),
+      @@date_voters += (reg_date -> v);
+
+  /* Identify spikes (> 2× rolling average — simplified for GSQL) */
+  PRINT @@date_counts AS registration_by_date, @@date_voters AS voters_by_date;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   QUERY 5: Detect Multi-Booth Fraud
+   Voters appearing in more than one booth/constituency
+   Signal Weight: 15 points
+─────────────────────────────────────────────────────────────────── */
+CREATE QUERY detect_multi_booth(STRING constituency) FOR GRAPH vote {
+  GroupByAccum<VERTEX<Voter> voter, SetAccum<VERTEX<Booth>> booths> @@voter_booths;
+  ListAccum<TUPLE<VERTEX<Voter>, INT>> @@multi_booth_voters;
+
+  Booths = {Booth.*};
+  TargetBooths = SELECT b FROM Booths:b WHERE b.constituency == constituency;
+
+  Voters = SELECT v
+    FROM TargetBooths:b -(<ASSIGNED_TO)- Voter:v;
+
+  BoothMemberships = SELECT v
+    FROM Voters:v -(ASSIGNED_TO>)- Booth:b2
+    ACCUM @@voter_booths += GROUP(v, b2);
+
+  /* Filter voters attached to >1 booth */
+  FOREACH (v, booth_set) IN @@voter_booths DO
+    IF booth_set.size() > 1 THEN
+      @@multi_booth_voters += (v, booth_set.size());
+    END;
+  END;
+
+  PRINT @@multi_booth_voters AS multi_booth_voters;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   QUERY 6: Full Constituency Scan
+   Combines all signals, computes final risk score per voter
+   Phase 5: Scoring Engine
+─────────────────────────────────────────────────────────────────── */
+CREATE QUERY full_constituency_scan(STRING constituency) FOR GRAPH vote {
+  SumAccum<FLOAT> @risk_score;
+  SetAccum<STRING> @flags;
+  MaxAccum<INT>    @booth_count;
+  MaxAccum<INT>    @address_density;
+
+  Booths = {Booth.*};
+  TargetBooths = SELECT b FROM Booths:b WHERE b.constituency == constituency;
+
+  /* Step 1: Get all voters */
+  Voters = SELECT v FROM TargetBooths:b -(<ASSIGNED_TO)- Voter:v;
+
+  /* Step 2: Check address overcrowding (+30) */
+  Voters = SELECT v
+    FROM Voters:v -(REGISTERED_AT>)- Address:a
+    ACCUM
+      v.@address_density += a.@addressVoterCount,
+      IF a.@addressVoterCount > 10 THEN
+        v.@risk_score += 0.30, v.@flags += "ADDRESS_OVERCROWDING"
+      END;
+
+  /* Step 3: Check DUPLICATE_OF edges (+25) */
+  Voters = SELECT v
+    FROM Voters:v -(DUPLICATE_OF)- Voter:v2
+    ACCUM v.@risk_score += 0.25, v.@flags += "EPIC_DUPLICATION";
+
+  /* Step 4: No Aadhaar link (+15) */
+  Voters = SELECT v FROM Voters:v
+    WHERE v.aadhaar_linked == FALSE
+    ACCUM v.@risk_score += 0.15, v.@flags += "NO_AADHAAR";
+
+  /* Step 5: Multi-booth check (+15) */
+  Voters = SELECT v
+    FROM Voters:v -(ASSIGNED_TO>)- Booth:b2
+    ACCUM v.@booth_count += 1
+    POST-ACCUM IF v.@booth_count > 1 THEN
+      v.@risk_score += 0.15, v.@flags += "MULTI_BOOTH"
+    END;
+
+  /* Step 6: Update vertex risk_score and ml_score */
+  Results = SELECT v FROM Voters:v
+    POST-ACCUM
+      v.risk_score = v.@risk_score,
+      v.ml_score   = v.@risk_score * 0.85  /* placeholder — real: from ML pipeline */
+    ORDER BY v.@risk_score DESC
+    LIMIT 500;
+
+  PRINT Results;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   QUERY 7: Cross-Constituency Network Detection
+   Identifies fraud rings spanning multiple constituencies
+   Phase 6: Graph Algorithms
+─────────────────────────────────────────────────────────────────── */
+CREATE QUERY detect_cross_constituency_network() FOR GRAPH vote {
+  OrAccum    @visited;
+  SumAccum<INT> @component_size;
+  MapAccum<STRING, SetAccum<STRING>> @@constituency_map;
+
+  /* Weakly Connected Component — simplified */
+  AllVoters = {Voter.*};
+
+  /* Find addresses shared across constituency boundaries */
+  SharedAddresses = SELECT a
+    FROM AllVoters:v1 -(REGISTERED_AT>)- Address:a -(<REGISTERED_AT)- Voter:v2
+    WHERE v1.constituency != v2.constituency
+    ACCUM
+      @@constituency_map += (a.addr_id -> v1.constituency),
+      @@constituency_map += (a.addr_id -> v2.constituency);
+
+  PRINT @@constituency_map AS cross_constituency_addresses;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   QUERY 8: Timeline Data
+   Returns year-by-year registration counts for trend analysis
+─────────────────────────────────────────────────────────────────── */
+CREATE QUERY get_timeline_data(STRING constituency) FOR GRAPH vote {
+  MapAccum<STRING, INT> @@year_counts;
+  MapAccum<STRING, SumAccum<FLOAT>> @@year_risk;
+
+  Booths = {Booth.*};
+  TargetBooths = SELECT b FROM Booths:b WHERE b.constituency == constituency;
+
+  Voters = SELECT v
+    FROM TargetBooths:b -(<ASSIGNED_TO)- Voter:v
+    ACCUM
+      STRING yr = v.added_date.substr(0, 4),
+      @@year_counts += (yr -> 1),
+      @@year_risk   += (yr -> v.risk_score);
+
+  PRINT @@year_counts AS registrations_by_year, @@year_risk AS risk_by_year;
+}

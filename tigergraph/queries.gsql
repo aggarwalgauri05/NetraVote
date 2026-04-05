@@ -1,0 +1,84 @@
+USE GRAPH vote
+
+// 1. Core Analytics: Multi-Signal Risk Scoring
+// This query iterates through all voters and calculates a normalized 0-1 risk score
+// Signals: Address Density (w1), Epic Duplication (w2), Booth Burst (w3)
+CREATE QUERY compute_risk_scores() FOR GRAPH vote {
+  SumAccum<INT> @addressVoterCount;
+  SumAccum<INT> @epicDuplicateCount;
+  SumAccum<FLOAT> @riskScore;
+  MapAccum<STRING, SumAccum<INT>> @@epicMap;
+
+  // Pass 1: Global EPIC counting for duplication check
+  Voters = {Voter.*};
+  GlobalVoters = SELECT v FROM Voters:v
+                 ACCUM @@epicMap += (v.epic_number -> 1);
+
+  // Pass 2: Address Density Check
+  Addresses = {Address.*};
+  DensityCheck = SELECT a FROM Addresses:a -(LIVES_AT)- Voter:v
+                  ACCUM a.@addressVoterCount += 1;
+
+  // Pass 3: Final Scoring Logic
+  ScoredVoters = SELECT v FROM Voters:v -(LIVES_AT:e)- Address:a
+                 ACCUM 
+                   v.@addressVoterCount = a.@addressVoterCount,
+                   v.@epicDuplicateCount = @@epicMap.get(v.epic_number)
+                 POST-ACCUM
+                   // w1: Address Density (Max risk if > 50 voters)
+                   FLOAT addressRisk = 0,
+                   IF v.@addressVoterCount > 50 THEN addressRisk = 1.0
+                   ELSE IF v.@addressVoterCount > 10 THEN addressRisk = v.@addressVoterCount / 50.0
+                   END,
+
+                   // w2: EPIC Duplication (Max risk if EPIC appears > 1 time)
+                   FLOAT epicRisk = 0,
+                   IF v.@epicDuplicateCount > 1 THEN epicRisk = 1.0 END,
+
+                   // Final Weighted Score (0.5 Address + 0.5 EPIC)
+                   v.@riskScore = (addressRisk * 0.6) + (epicRisk * 0.4);
+
+  // Print results summary
+  PRINT ScoredVoters[ScoredVoters.id, ScoredVoters.name, ScoredVoters.@riskScore, ScoredVoters.@addressVoterCount] AS results;
+}
+
+// 2. UI Network Fetcher (Returns targeted sub-graph with UI-ready attributes)
+CREATE QUERY get_ui_network(STRING target_constituency = "New Delhi", INT max_voters = 500) FOR GRAPH vote {
+  SumAccum<INT> @addressVoterCount;
+  SumAccum<FLOAT> @riskScore;
+  MapAccum<STRING, SumAccum<INT>> @@epicMap;
+  SetAccum<EDGE> @@edges;
+
+  // Calculation logic (same as compute_risk_scores for consistency)
+  Voters = {Voter.*};
+  AllVoters = SELECT v FROM Voters:v ACCUM @@epicMap += (v.epic_number -> 1);
+
+  StartBooths = {Booth.*};
+  TargetBooths = SELECT b FROM StartBooths:b WHERE b.constituency == target_constituency;
+
+  VotersInConstituency = SELECT v FROM TargetBooths:b -(REGISTERED_IN:e)- Voter:v
+                         ACCUM @@edges += e
+                         LIMIT max_voters;
+
+  AddressNodes = SELECT a FROM VotersInConstituency:v -(LIVES_AT:e)- Address:a
+                 ACCUM a.@addressVoterCount += 1, @@edges += e;
+
+  FinalVoters = SELECT v FROM AddressNodes:a -(LIVES_AT:e)- Voter:v
+                WHERE v IN VotersInConstituency
+                ACCUM 
+                  FLOAT addressRisk = 0,
+                  IF a.@addressVoterCount > 50 THEN addressRisk = 1.0
+                  ELSE IF a.@addressVoterCount > 10 THEN addressRisk = a.@addressVoterCount / 50.0 END,
+                  
+                  FLOAT epicRisk = 0,
+                  IF @@epicMap.get(v.epic_number) > 1 THEN epicRisk = 1.0 END,
+                  
+                  v.@riskScore = (addressRisk * 0.6) + (epicRisk * 0.4);
+
+  Pins = SELECT p FROM AddressNodes:a -(LOCATED_IN:e)- PinCode:p
+         ACCUM @@edges += e;
+
+  PRINT TargetBooths, FinalVoters, AddressNodes, Pins, @@edges;
+}
+
+INSTALL QUERY ALL

@@ -1,0 +1,88 @@
+# TigerGraph Schema v4 — Ghost Voter Network Detection
+# Anti-Gravity Systems · NetraVote Intelligence
+
+USE GLOBAL
+
+# ── Vertex Types ────────────────────────────────────────────────────────────────
+
+CREATE VERTEX Voter (
+  PRIMARY_ID voter_id STRING,
+  name STRING,
+  age INT,
+  gender STRING,
+  epic_number STRING,
+  phone_hash STRING,
+  aadhaar_linked BOOL DEFAULT false,
+  registration_date DATETIME,
+  added_date STRING,
+  constituency STRING,
+  risk_score FLOAT DEFAULT 0.0,
+  ml_score FLOAT DEFAULT 0.0,
+  batch_id STRING
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Address (
+  PRIMARY_ID addr_id STRING,
+  full_address STRING,
+  normalized STRING,
+  pin_code STRING,
+  latitude FLOAT DEFAULT 0.0,
+  longitude FLOAT DEFAULT 0.0,
+  pagerank_score FLOAT DEFAULT 0.0,
+  voter_density INT DEFAULT 0
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Booth (
+  PRIMARY_ID booth_id STRING,
+  booth_name STRING,
+  constituency STRING,
+  total_voters INT DEFAULT 0,
+  anomaly_score FLOAT DEFAULT 0.0,
+  overnight_flag BOOL DEFAULT false
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Constituency (
+  PRIMARY_ID const_id STRING,
+  const_name STRING,
+  state STRING,
+  total_booths INT DEFAULT 0,
+  total_voters INT DEFAULT 0
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX PinCode (
+  PRIMARY_ID pincode STRING,
+  area_name STRING,
+  district STRING
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Device (
+  PRIMARY_ID device_hash STRING,
+  device_type STRING,
+  last_seen DATETIME
+) WITH primary_id_as_attribute="true"
+
+CREATE VERTEX Phone (
+  PRIMARY_ID phone_hash STRING
+) WITH primary_id_as_attribute="true"
+
+# ── Edge Types ──────────────────────────────────────────────────────────────────
+
+CREATE DIRECTED EDGE REGISTERED_AT     (FROM Voter, TO Address)
+CREATE DIRECTED EDGE ASSIGNED_TO       (FROM Voter, TO Booth)
+CREATE DIRECTED EDGE BOOTH_LOCATED_IN  (FROM Booth, TO PinCode)
+CREATE DIRECTED EDGE LOCATED_IN        (FROM Address, TO PinCode)
+CREATE DIRECTED EDGE BELONGS_TO        (FROM Booth, TO Constituency)
+CREATE UNDIRECTED EDGE FAMILY_OF       (FROM Voter, TO Voter, relation_type STRING)
+CREATE UNDIRECTED EDGE DUPLICATE_OF    (FROM Voter, TO Voter, match_type STRING, similarity FLOAT)
+CREATE UNDIRECTED EDGE SHARES_ADDRESS  (FROM Voter, TO Voter, address_id STRING)
+CREATE DIRECTED EDGE USES_DEVICE       (FROM Voter, TO Device)
+CREATE DIRECTED EDGE HAS_PHONE         (FROM Voter, TO Phone)
+
+# ── Create Graph ────────────────────────────────────────────────────────────────
+
+CREATE GRAPH vote (
+  Voter, Address, Booth, Constituency, PinCode, Device, Phone,
+  REGISTERED_AT, ASSIGNED_TO, BOOTH_LOCATED_IN, LOCATED_IN,
+  BELONGS_TO, FAMILY_OF, DUPLICATE_OF, SHARES_ADDRESS,
+  USES_DEVICE, HAS_PHONE
+)
