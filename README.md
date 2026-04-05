@@ -1,4 +1,4 @@
-# 🛡️ Anti-Gravity: Ghost Voter Network Detection System
+# 🛡️ Ghost Voter Network Detection System
 
 > **NetraVote** — A production-grade, graph-powered electoral fraud detection platform built with TigerGraph, FastAPI, and React.
 
