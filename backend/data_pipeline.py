@@ -1,5 +1,5 @@
 """
-NetraVote Data Pipeline
+GhostWatch Data Pipeline
 Handles: PDF/CSV ingestion, OCR, address normalization, duplicate detection
 """
 import re

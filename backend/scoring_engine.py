@@ -1,5 +1,5 @@
 """
-NetraVote Risk Scoring Engine
+GhostWatch Risk Scoring Engine
 Implements the full 7-signal weighted scoring system (0-100).
 Classifies voters as: Clean / Watch / Suspicious / Ghost Voter
 """

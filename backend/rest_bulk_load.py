@@ -19,7 +19,7 @@ def load_csv(path):
 def run_load():
     data_dir = "c:\\Users\\Anushree Jain\\.gemini\\antigravity\\scratch\\GHOST-VOTER-NETWORK\\backend\\data"
     
-    print("--- NetraVote Production Ingestion (Final Alignment) ---")
+    print("--- GhostWatch Production Ingestion (Final Alignment) ---")
     
     v_voters = load_csv(f"{data_dir}/voters.csv")
     v_addrs = load_csv(f"{data_dir}/addresses.csv")

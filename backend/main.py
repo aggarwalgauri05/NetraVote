@@ -1,5 +1,5 @@
 """
-NetraVote — Ghost Voter Intelligence System
+GhostWatch — Ghost Voter Intelligence System
 FastAPI Backend — Production Grade
 Anti-Gravity Systems · ECI Certified
 """
@@ -24,19 +24,19 @@ load_dotenv()
 TG_HOST      = os.getenv("TG_HOST", "")
 TG_GRAPH     = os.getenv("TG_GRAPHNAME", "vote")
 TG_TOKEN     = os.getenv("TG_TOKEN", "")
-MOCK_ENABLED = False # Production Mode
+MOCK_ENABLED = True # Default to True for easier testing and demo
 
 # ─── FastAPI App ──────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("\n👁️  NetraVote FastAPI Intelligence Backend")
+    print("\n👁️  GhostWatch FastAPI Intelligence Backend")
     print(f"    TigerGraph: {TG_HOST[:40]}..." if TG_HOST else "    TigerGraph: NOT CONFIGURED")
     print(f"    Mock fallback: {'ENABLED' if MOCK_ENABLED else 'DISABLED'}\n")
     yield
 
 app = FastAPI(
-    title="NetraVote Ghost Voter Intelligence API",
+    title="GhostWatch Ghost Voter Intelligence API",
     description="Anti-Gravity Systems — Electoral Fraud Detection Engine",
     version="4.1.0",
     lifespan=lifespan
@@ -110,31 +110,31 @@ def _threat_level(ghosts: int) -> str:
 @app.get("/", tags=["System"])
 async def root():
     return {
-        "system": "NetraVote Ghost Voter Intelligence System",
+        "system": "GhostWatch Ghost Voter Intelligence System",
         "version": "4.1.0",
         "built_by": "Anti-Gravity Systems",
         "tg_connected": _is_tg_configured(),
-        "endpoints": [
-            "GET  /health",
-            "GET  /constituencies",
-            "GET  /graph/network/{constituency}",
-            "GET  /analysis/overcrowded",
-            "GET  /analysis/duplicates",
-            "GET  /analysis/families",
-            "GET  /analysis/temporal",
-            "GET  /analysis/multibooth",
-            "GET  /analysis/cross-constituency",
-            "GET  /analysis/timeline",
-            "GET  /score/{voter_id}",
-            "GET  /search/{constituency}",
-            "POST /whistleblower/report",
-            "GET  /export/json/{constituency}",
-            "POST /export/pdf/{constituency}",
-            "POST /ingest/pdf",
-        ]
+        "endpoints": {
+            "/health": "Check system operational status and connectivity.",
+            "/constituencies": "List all available electoral constituencies and their voter counts.",
+            "/graph/network/{constituency}": "Retrieve a graph representation of voters, addresses, and booths.",
+            "/analysis/overcrowded": "Identify addresses with voter density exceeding safety thresholds.",
+            "/analysis/duplicates": "Detect identical or suspicious duplication of EPIC records.",
+            "/analysis/families": "Spot synthetic or impossible family trees (e.g., impossible age gaps).",
+            "/analysis/temporal": "Analyze registration spikes to detect sudden bulk data ingestion.",
+            "/analysis/multibooth": "Find voters registered across multiple booths in the same constituency.",
+            "/analysis/cross-constituency": "Identify coordinated voter ghost networks spanning multiple regions.",
+            "/analysis/timeline": "Visualize registration and fraud trends year-over-year.",
+            "/score/{voter_id}": "Calculate a granular 0-100 risk score for a specific voter.",
+            "/search/{constituency}": "Perform fuzzy search for voters within a target constituency.",
+            "/whistleblower/report": "Anonymously submit reports of suspected electoral fraud.",
+            "/export/json/{constituency}": "Download a full forensic data package in JSON format.",
+            "/export/pdf/{constituency}": "Generate an ECI-certified formal forensic PDF report.",
+            "/ingest/pdf": "Automated data pipeline to extract and warehouse voters from electoral rolls."
+        }
     }
 
-@app.get("/health", tags=["System"])
+@app.get("/health", tags=["System"], summary="System health check", description="Verify the status of the FastAPI server and its connectivity to the TigerGraph database.")
 async def health():
     tg_ok = False
     if _is_tg_configured():
@@ -155,7 +155,7 @@ async def health():
         "integrity_check": True,
     }
 
-@app.get("/constituencies", tags=["Data"])
+@app.get("/constituencies", tags=["Data"], summary="List constituencies", description="Retrieve all active constituencies from TigerGraph or fallback to seed data.")
 async def constituencies():
     try:
         if _is_tg_configured():
@@ -189,7 +189,7 @@ async def constituencies():
 
 # ─── Graph Network ────────────────────────────────────────────────────────────
 
-@app.get("/graph/network/{constituency}", tags=["Graph"])
+@app.get("/graph/network/{constituency}", tags=["Graph"], summary="Get constituency network graph", description="Retrieves a graph representation of voter relationships, address hubs, and booth assignments.")
 async def graph_network(constituency: str, limit: int = Query(200, le=500)):
     try:
         if _is_tg_configured():
@@ -236,7 +236,7 @@ def _parse_tg_graph(results: List[Dict], constituency: str) -> dict:
 
 # ─── Analysis Endpoints ───────────────────────────────────────────────────────
 
-@app.get("/analysis/overcrowded", tags=["Analysis"])
+@app.get("/analysis/overcrowded", tags=["Analysis"], summary="Detect overcrowded addresses", description="Identifies addresses where the number of registered voters exceeds a specified threshold.")
 async def analysis_overcrowded(constituency: str = "New Delhi", threshold: int = 10):
     """Addresses with suspiciously high voter density (>threshold)."""
     try:
@@ -248,7 +248,7 @@ async def analysis_overcrowded(constituency: str = "New Delhi", threshold: int =
             return {"results": generate_overcrowded_addresses(constituency, threshold), "isMock": True}
         raise HTTPException(503, "Unavailable")
 
-@app.get("/analysis/duplicates", tags=["Analysis"])
+@app.get("/analysis/duplicates", tags=["Analysis"], summary="Detect duplicate voters", description="Finds voters with suspicious EPIC duplication or phonetic name overlaps.")
 async def analysis_duplicates(constituency: str = "New Delhi"):
     """Detect duplicate EPICs and phonetically similar voter names."""
     try:
@@ -260,7 +260,7 @@ async def analysis_duplicates(constituency: str = "New Delhi"):
             return {"results": generate_duplicate_voters(constituency), "isMock": True}
         raise HTTPException(503, "Unavailable")
 
-@app.get("/analysis/families", tags=["Analysis"])
+@app.get("/analysis/families", tags=["Analysis"], summary="Detect impossible families", description="Identifies synthetic families with impossible age gaps or biological inconsistencies.")
 async def analysis_families(constituency: str = "New Delhi"):
     """Detect impossible family trees (son older than father, extreme gaps)."""
     try:
@@ -272,7 +272,7 @@ async def analysis_families(constituency: str = "New Delhi"):
             return {"results": generate_family_anomalies(constituency), "isMock": True}
         raise HTTPException(503, "Unavailable")
 
-@app.get("/analysis/temporal", tags=["Analysis"])
+@app.get("/analysis/temporal", tags=["Analysis"], summary="Detect temporal registration fraud", description="Identifies clusters of registrations occurring in tight time windows at the same location.")
 async def analysis_temporal(constituency: str = "New Delhi", window_days: int = 30):
     """Detect bulk voter registrations within suspicious time windows."""
     try:
@@ -284,7 +284,7 @@ async def analysis_temporal(constituency: str = "New Delhi", window_days: int = 
             return {"results": generate_temporal_fraud(constituency), "isMock": True}
         raise HTTPException(503, "Unavailable")
 
-@app.get("/analysis/multibooth", tags=["Analysis"])
+@app.get("/analysis/multibooth", tags=["Analysis"], summary="Detect multi-booth voters", description="Finds voters who are registered in multiple polling stations across the constituency.")
 async def analysis_multibooth(constituency: str = "New Delhi"):
     """Detect voters assigned to multiple booths (multi-roll fraud)."""
     try:
@@ -296,19 +296,24 @@ async def analysis_multibooth(constituency: str = "New Delhi"):
             return {"results": generate_multi_booth_fraud(constituency), "isMock": True}
         raise HTTPException(503, "Unavailable")
 
+@app.get("/analysis/cross-constituency", tags=["Analysis"], summary="Detect cross-constituency networks", description="Identifies fraud networks where ghost voters span different legislative areas.")
 @app.get("/analysis/cross-constituency", tags=["Analysis"])
-async def analysis_cross_constituency():
+async def analysis_cross_constituency(constituency: str = "New Delhi"):
     """Detect coordinated fraud networks that span multiple constituencies."""
+    # Safety check for undefined constituency from frontend state
+    if constituency == "undefined" or not constituency:
+        constituency = "New Delhi"
+        
     try:
         if _is_tg_configured():
-            return await tg_query("detect_cross_constituency_network")
+            return await tg_query("detect_cross_constituency_network", {"constituency": constituency})
         raise RuntimeError("mock")
     except Exception:
         if MOCK_ENABLED:
-            return {"results": generate_cross_constituency(), "isMock": True}
+            return {"results": generate_cross_constituency(constituency), "isMock": True}
         raise HTTPException(503, "Unavailable")
 
-@app.get("/analysis/timeline", tags=["Analysis"])
+@app.get("/analysis/timeline", tags=["Analysis"], summary="Get registration timeline data", description="Provides longitudinal data on voter registrations and anomaly detection trends.")
 async def analysis_timeline(constituency: str = "New Delhi", start_year: int = 2018, end_year: int = 2024):
     """Return voter registration fraud trends over a year range."""
     # Safety check for undefined constituency from frontend state
@@ -330,6 +335,7 @@ async def analysis_timeline(constituency: str = "New Delhi", start_year: int = 2
             
             timeline = []
             for yr_str in all_years:
+                if not yr_str: continue
                 yr_int = int(yr_str)
                 if yr_int < start_year or yr_int > end_year: continue
                 
@@ -341,15 +347,16 @@ async def analysis_timeline(constituency: str = "New Delhi", start_year: int = 2
                 fraud_rate = round((g / max(total, 1)) * 100, 2) if total > 0 else 0.0
                 
                 timeline.append({
+                    "date": f"{yr_int}-01-01",
                     "year": yr_int,
                     "total_voters": total,
                     "ghost_anomalies": g,
-                    "legitimate_voters": l,
+                    "legit_registrations": l,
                     "integrity_score": integrity,
                     "fraud_rate_pct": fraud_rate,
-                    "spike": g > (0.05 * total) and total > 2, # More sensitive spike detection for small seeds
+                    "spike": g > (0.05 * total) and total > 2,
                     "spike_reason": "Suspicious ghost registration surge" if g > (0.05 * total) else None,
-                    "new_addresses": math.ceil(total / 5) # Adaptive scaling
+                    "new_addresses": math.ceil(total / 5)
                 })
             
             trend = "STABLE"
@@ -360,30 +367,29 @@ async def analysis_timeline(constituency: str = "New Delhi", start_year: int = 2
                 elif last_f < prev_f - 2: trend = "IMPROVING"
 
             return {
-                "results": {
+                "timeline": timeline,
+                "stats": {
                     "constituency": constituency,
                     "start_year": start_year,
                     "end_year": end_year,
                     "trend": trend,
                     "peak_year": max(timeline, key=lambda x: x["ghost_anomalies"])["year"] if timeline else end_year,
-                    "timeline": timeline,
-                    "isMock": False
-                }
+                },
+                "isMock": False
             }
         raise RuntimeError("mock")
     except Exception as e:
         print(f"DEBUG: Timeline fetch failed: {e}")
         if MOCK_ENABLED:
-            from backend.mock_data_gen import generate_timeline_data
-            return {"results": generate_timeline_data(constituency, start_year, end_year), "isMock": True}
+            return generate_timeline_data(constituency, start_year, end_year)
         raise HTTPException(503, f"Timeline unavailable: {e}")
 
 # ─── Voter Score ──────────────────────────────────────────────────────────────
 
-@app.get("/score/{voter_id}", tags=["Scoring"])
+@app.get("/score/{voter_id}", tags=["Scoring"], summary="Retrieve voter risk score", description="Calculates the comprehensive ghost-voter risk score (0-1) for a specific individual.")
 async def get_voter_score(voter_id: str):
     """Return detailed risk score breakdown for a specific voter."""
-    from backend.scoring_engine import compute_voter_risk
+    from scoring_engine import compute_voter_risk
     return compute_voter_risk(voter_id)
 
 @app.post("/score/override", tags=["Scoring"])
@@ -484,7 +490,7 @@ async def export_json_report(constituency: str):
 
     report = {
         "metadata": {
-            "system": "NetraVote Ghost Voter Intelligence System v4.1",
+            "system": "GhostWatch Ghost Voter Intelligence System v4.1",
             "generated_at": datetime.utcnow().isoformat(),
             "generated_by": "ANTI-GRAVITY SYSTEMS · ECI CERTIFIED",
             "constituency": constituency,
@@ -558,7 +564,7 @@ async def export_json_report(constituency: str):
 
     return JSONResponse(
         content=report,
-        headers={"Content-Disposition": f'attachment; filename="NetraVote_{constituency.replace(" ","_")}_{int(time.time())}.json"'}
+        headers={"Content-Disposition": f'attachment; filename="GhostWatch_{constituency.replace(" ","_")}_{int(time.time())}.json"'}
     )
 
 @app.post("/export/pdf/{constituency}", tags=["Export"])
@@ -570,7 +576,7 @@ async def export_pdf_report(constituency: str):
     return StreamingResponse(
         iter([pdf_bytes]),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="NetraVote_ECI_{constituency.replace(" ","_")}.pdf"'}
+        headers={"Content-Disposition": f'attachment; filename="GhostWatch_ECI_{constituency.replace(" ","_")}.pdf"'}
     )
 
 # ─── PDF Ingestion ────────────────────────────────────────────────────────────

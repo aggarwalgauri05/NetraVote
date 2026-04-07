@@ -1,5 +1,5 @@
 """
-NetraVote ML Engine
+GhostWatch ML Engine
 GraphSAGE embeddings + Isolation Forest for unsupervised ghost voter detection.
 Falls back to rule-based scoring if sklearn/numpy not available.
 """

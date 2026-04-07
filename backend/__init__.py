@@ -1,1 +1,1 @@
-# NetraVote Backend Package
+# GhostWatch Backend Package
