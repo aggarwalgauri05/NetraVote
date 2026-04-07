@@ -1,7 +1,7 @@
 {
   "name": "ghost-voter-backend",
   "version": "1.0.0",
-  "description": "Proxy API for NetraVote TigerGraph",
+  "description": "Proxy API for GhostWatch TigerGraph",
   "main": "index.js",
   "type": "module",
   "scripts": {

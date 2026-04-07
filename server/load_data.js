@@ -37,7 +37,7 @@ async function loadEdges(data) {
 }
 
 async function generateAndLoad() {
-  console.log('🚀 Generating Winning Dataset for NetraVote...');
+  console.log('🚀 Generating Winning Dataset for GhostWatch...');
 
   const booths = [];
   const pins = [];

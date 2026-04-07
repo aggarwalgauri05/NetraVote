@@ -1,6 +1,6 @@
 # 🛡️ Ghost Voter Network Detection System
 
-> **NetraVote** — A production-grade, graph-powered electoral fraud detection platform built with TigerGraph, FastAPI, and React.
+> **GhostWatch** — A production-grade, graph-powered electoral fraud detection platform built with TigerGraph, FastAPI, and React.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TigerGraph](https://img.shields.io/badge/TigerGraph-Savanna-blue)](https://tgcloud.io)
@@ -13,7 +13,7 @@
 
 Electoral roll data appears normal individually — but **graph intelligence reveals hidden fraud networks**.
 
-NetraVote converts voter registration data into a connected graph, then applies multi-hop pattern analysis, community detection, and temporal analytics to expose:
+GhostWatch converts voter registration data into a connected graph, then applies multi-hop pattern analysis, community detection, and temporal analytics to expose:
 
 - **Ghost Voter Clusters** — Fake identities registered en masse at single addresses
 - **Cross-Constituency Networks** — Coordinated fraud rings spanning multiple regions  

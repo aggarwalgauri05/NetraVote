@@ -91,7 +91,7 @@ const buildMockData = (constituency) => {
 app.get('/api/health', async (req, res) => {
   try {
     await API.get('/echo');
-    res.json({ status: 'ok', message: 'NetraVote synced with TigerGraph', tigergraph: true });
+    res.json({ status: 'ok', message: 'GhostWatch synced with TigerGraph', tigergraph: true });
   } catch (err) {
     res.json({ status: 'degraded', message: 'Running in demo mode', tigergraph: false });
   }
@@ -177,7 +177,7 @@ app.post('/api/report/:constituency', (req, res) => {
 
   const report = {
     metadata: {
-      system: 'NetraVote Ghost Voter Intelligence System v4.1',
+      system: 'GhostWatch Ghost Voter Intelligence System v4.1',
       generated_at: new Date().toISOString(),
       generated_by: 'ANTIGRAVITY SYSTEMS · ECI CERTIFIED',
       constituency,
@@ -232,12 +232,12 @@ app.post('/api/report/:constituency', (req, res) => {
   };
 
   res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Content-Disposition', `attachment; filename="NetraVote_Report_${constituency.replace(/ /g, '_')}_${Date.now()}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="GhostWatch_Report_${constituency.replace(/ /g, '_')}_${Date.now()}.json"`);
   res.json(report);
 });
 
 app.listen(PORT, () => {
-  console.log(`\n👁️  NetraVote Intelligence Backend · Port ${PORT}`);
+  console.log(`\n👁️  GhostWatch Intelligence Backend · Port ${PORT}`);
   console.log(`    TigerGraph Host: ${TG_ENV.host}`);
   console.log(`    Graph: ${TG_ENV.graphName}`);
   console.log(`    Mock fallback: ENABLED\n`);

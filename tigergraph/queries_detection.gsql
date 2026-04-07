@@ -1,5 +1,5 @@
 /*
-  NetraVote Extended Detection Queries (GSQL)
+  GhostWatch Extended Detection Queries (GSQL)
   ============================================
   Phase 4: All 6 detection algorithms + graph scoring
   Phase 5: Scoring engine integration

@@ -55,10 +55,30 @@ const DataStream = () => {
 const DemoTour = ({ onComplete }) => {
     const [step, setStep] = useState(0);
     const steps = [
-        { title: 'Election Integrity', detail: 'Welcome to NetraVote. We help identify recording errors and voter duplication using graph intelligence.', icon: <Shield size={20} /> },
-        { title: 'Detection Engine', detail: 'Our system scans thousands of records to find clusters of suspicious registrations at single addresses.', icon: <Cpu size={20} /> },
-        { title: 'Official Reports', detail: 'Generate evidence reports with a single click to assist in official verification.', icon: <FileText size={20} /> },
-        { title: 'Ready to Begin', detail: 'Navigate through the maps or check active alerts to start your review.', icon: <Target size={20} /> }
+        { 
+            title: 'Election Integrity', 
+            detail: 'Welcome to GhostWatch. We help identify recording errors and voter duplication using graph intelligence.', 
+            icon: <Shield size={20} />,
+            image: '/assets/threat_network.png'
+        },
+        { 
+            title: 'Detection Engine', 
+            detail: 'Our system scans thousands of records to find clusters of suspicious registrations at single addresses.', 
+            icon: <Cpu size={20} />,
+            image: '/assets/cluster_diagnostic.png'
+        },
+        { 
+            title: 'Official Reports', 
+            detail: 'Generate evidence reports with a single click to assist in official verification.', 
+            icon: <FileText size={20} />,
+            image: '/assets/verification_report.png'
+        },
+        { 
+            title: 'Ready to Begin', 
+            detail: 'Navigate through the maps or check active alerts to start your review.', 
+            icon: <Target size={20} />,
+            image: '/assets/booth_scan.webp'
+        }
     ];
 
     return (
@@ -68,26 +88,42 @@ const DemoTour = ({ onComplete }) => {
         >
             <motion.div 
                 initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }}
-                className="w-full max-w-md glass-panel p-8 rounded-4xl border-coral-500/20 text-center relative shadow-2xl"
+                className="w-full max-w-2xl glass-panel p-8 rounded-[2.5rem] border border-coral-500/20 text-center relative shadow-2xl overflow-hidden flex flex-col md:flex-row gap-8 items-center"
             >
-                <div className="relative z-10">
-                    <div className="w-16 h-16 rounded-2xl bg-coral-500/10 border border-coral-500/20 flex items-center justify-center mx-auto mb-6">
+                <div className="w-full md:w-1/2 h-48 md:h-full min-h-[200px] rounded-2xl bg-obsidian-950/50 border border-white/5 relative overflow-hidden flex items-center justify-center p-4">
+                    <AnimatePresence mode="wait">
+                        <motion.img 
+                            key={step}
+                            initial={{ opacity: 0, scale: 1.05 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.4 }}
+                            src={steps[step].image} 
+                            onError={(e) => e.target.style.display='none'}
+                            className="absolute inset-0 w-full h-full object-cover opacity-60"
+                        />
+                    </AnimatePresence>
+                    <div className="absolute inset-0 bg-gradient-to-t from-obsidian-900/80 to-transparent" />
+                    <div className="relative z-10 w-16 h-16 rounded-2xl bg-coral-500/10 border border-coral-500/20 flex items-center justify-center mb-6">
                         <div className="text-coral-600">{steps[step].icon}</div>
                     </div>
+                </div>
+
+                <div className="w-full md:w-1/2 text-left relative z-10 flex flex-col h-full py-2">
                     <span className="text-[9px] font-bold text-coral-500 uppercase tracking-[0.4em] mb-3 block">SYSTEM_HELP_{step + 1}</span>
-                    <h2 className="text-2xl font-bold text-slate-900 mb-4 tracking-tight">{steps[step].title}</h2>
-                    <p className="text-slate-600 leading-relaxed text-sm mb-8">{steps[step].detail}</p>
-                    <div className="flex items-center justify-between gap-4">
+                    <h2 className="text-2xl font-bold text-white mb-4 tracking-tight font-display italic uppercase">{steps[step].title}</h2>
+                    <p className="text-slate-400 leading-relaxed text-sm mb-8 flex-1">{steps[step].detail}</p>
+                    <div className="flex items-center justify-between gap-4 mt-auto border-t border-white/5 pt-6">
                         <div className="flex gap-1.5">
                             {steps.map((_, i) => (
-                                <div key={i} className={`h-1 rounded-full transition-all ${i === step ? 'w-6 bg-coral-500' : 'w-2 bg-slate-200'}`} />
+                                <div key={i} className={`h-1 rounded-full transition-all ${i === step ? 'w-6 bg-coral-500 shadow-[0_0_8px_rgba(242,108,109,0.5)]' : 'w-2 bg-slate-700'}`} />
                             ))}
                         </div>
                         <button 
                             onClick={() => step < steps.length - 1 ? setStep(s => s + 1) : onComplete()}
-                            className="px-6 py-2.5 rounded-xl bg-navy-600 hover:bg-navy-700 text-white text-xs font-bold transition-all shadow-md active:scale-95"
+                            className="px-6 py-2.5 rounded-xl bg-royal-600 hover:bg-royal-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 border border-royal-500/30"
                         >
-                            {step < steps.length - 1 ? 'Next' : 'Get Started'}
+                            {step < steps.length - 1 ? 'Next Phase' : 'Initialize System'}
                         </button>
                     </div>
                 </div>
@@ -210,7 +246,7 @@ function App() {
               </motion.div>
             </motion.div>
             <div className="flex flex-col items-center gap-8">
-                <span className="text-[12px] font-bold tracking-[0.6em] text-royal-400/80 uppercase">Loading_NetraVote_Engine</span>
+                <span className="text-[12px] font-bold tracking-[0.6em] text-royal-400/80 uppercase">Loading_GhostWatch_Engine</span>
                 <div className="w-80 h-[2px] bg-white/5 rounded-full overflow-hidden">
                     <motion.div 
                         initial={{ x: '-100%' }} animate={{ x: '100%' }}
@@ -344,7 +380,7 @@ function App() {
                     )}
                     <div className="h-full w-full overflow-y-auto custom-scrollbar px-4 md:px-10 py-6 md:py-10">
                         {activeTab === 'analytics' && <AnalyticsPanel graphData={graphData} stats={stats} constituency={constituency} />}
-                        {activeTab === 'forensics' && <ForensicsPanel stats={stats} constituency={constituency} />}
+                        {activeTab === 'forensics' && <ForensicsPanel graphData={graphData} stats={stats} constituency={constituency} />}
                         {activeTab === 'timeline' && <TimelinePanel constituency={constituency} />}
                         {activeTab === 'crossnet' && <CrossConstituencyPanel constituency={constituency} />}
                         {activeTab === 'geomap' && <GeoMapPanel constituency={constituency} />}
