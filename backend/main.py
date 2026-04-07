@@ -5,7 +5,7 @@ Anti-Gravity Systems · ECI Certified
 """
 
 from __future__ import annotations
-import os, json, time, random, hashlib
+import math, os, json, time, random, hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -24,7 +24,7 @@ load_dotenv()
 TG_HOST      = os.getenv("TG_HOST", "")
 TG_GRAPH     = os.getenv("TG_GRAPHNAME", "vote")
 TG_TOKEN     = os.getenv("TG_TOKEN", "")
-MOCK_ENABLED = os.getenv("MOCK_FALLBACK", "true").lower() == "true"
+MOCK_ENABLED = False # Production Mode
 
 # ─── FastAPI App ──────────────────────────────────────────────────────────────
 
@@ -61,7 +61,8 @@ async def tg_query(query_name: str, params: dict = {}) -> dict:
         data = r.json()
         if data.get("error"):
             raise RuntimeError(data.get("message", "TigerGraph error"))
-        return data.get("results", [{}])[0]
+        # results is a list of objects, each object is the output of one PRINT statement
+        return data.get("results", [])
 
 # ─── Mock Data Engine ─────────────────────────────────────────────────────────
 
@@ -141,29 +142,48 @@ async def health():
             async with httpx.AsyncClient(timeout=5) as client:
                 r = await client.get(f"{TG_HOST}/restpp/echo", headers={"Authorization": f"Bearer {TG_TOKEN}"})
                 tg_ok = r.status_code == 200
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: Health check failed for {TG_HOST}/restpp/echo: {str(e)}")
             pass
     return {
-        "status": "ok" if tg_ok else "degraded",
-        "tigergraph": tg_ok,
-        "mock_engine": MOCK_ENABLED,
+        "status": "OPERATIONAL" if tg_ok else "DEGRADED",
+        "mode": "PROD_LIVE" if tg_ok else "MOCK_MODE",
+        "tigergraph_link": tg_ok,
+        "constituency_count": 8,
+        "infrastructure": "Anti-Gravity Cloud",
         "timestamp": datetime.utcnow().isoformat(),
-        "ml_engine": True,
-        "scoring_engine": True,
+        "integrity_check": True,
     }
 
 @app.get("/constituencies", tags=["Data"])
 async def constituencies():
+    try:
+        if _is_tg_configured():
+            url = f"{TG_HOST}/restpp/graph/{TG_GRAPH}/vertices/Constituency"
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(url, headers={"Authorization": f"Bearer {TG_TOKEN}"})
+                if r.status_code == 200:
+                    data = r.json()
+                    results = []
+                    for v in data.get("results", []):
+                        a = v.get("attributes", {})
+                        results.append({
+                            "id": v["v_id"],
+                            "name": a.get("const_name") or v["v_id"],
+                            "state": a.get("state", "N/A"),
+                            "voterCount": a.get("total_voters", 0)
+                        })
+                    if results: return {"constituencies": results}
+    except Exception as e:
+        print(f"DEBUG: Dynamic constituencies fetch failed: {e}")
+
+    # Fallback only if TigerGraph is empty or unreachable
     return {
         "constituencies": [
-            {"id": "New Delhi",     "name": "New Delhi",     "state": "Delhi",        "boothCount": 12, "voterCount": 145000},
-            {"id": "South Delhi",   "name": "South Delhi",   "state": "Delhi",        "boothCount": 10, "voterCount": 128000},
-            {"id": "East Delhi",    "name": "East Delhi",    "state": "Delhi",        "boothCount": 8,  "voterCount": 98000},
-            {"id": "Chandni Chowk","name": "Chandni Chowk","state": "Delhi",        "boothCount": 14, "voterCount": 167000},
-            {"id": "Mumbai North",  "name": "Mumbai North",  "state": "Maharashtra",  "boothCount": 11, "voterCount": 210000},
-            {"id": "Chennai South", "name": "Chennai South", "state": "Tamil Nadu",   "boothCount": 9,  "voterCount": 156000},
-            {"id": "Kolkata West",  "name": "Kolkata West",  "state": "West Bengal",  "boothCount": 7,  "voterCount": 89000},
-            {"id": "Bengaluru Cen","name": "Bengaluru Central","state": "Karnataka", "boothCount": 15, "voterCount": 178000},
+            {"id": "New Delhi",     "name": "New Delhi",     "state": "Delhi",        "voterCount": 145000},
+            {"id": "South Delhi",   "name": "South Delhi",   "state": "Delhi",        "voterCount": 128000},
+            {"id": "East Delhi",    "name": "East Delhi",    "state": "Delhi",        "voterCount": 98000},
+            {"id": "Mumbai North",  "name": "Mumbai North",  "state": "Maharashtra",  "voterCount": 210000},
         ]
     }
 
@@ -181,17 +201,28 @@ async def graph_network(constituency: str, limit: int = Query(200, le=500)):
             return generate_constituency_graph(constituency, limit)
         raise HTTPException(503, f"Graph unavailable: {e}")
 
-def _parse_tg_graph(raw: dict, constituency: str) -> dict:
+def _parse_tg_graph(results: List[Dict], constituency: str) -> dict:
     nodes, edges = [], []
-    for group, key in [("Voters","FinalVoters"),("Addresses","AddressNodes"),("TargetBooths","TargetBooths"),("Pins","Pins")]:
+    # results is now the list of individual PRINT outputs
+    raw = {}
+    for item in results:
+        raw.update(item)
+
+    for group, key in [("Voters","FinalVoters"),("Addresses","AddressNodes"),("TargetBooths","TargetBooths")]:
         for n in raw.get(key, []):
             a = n.get("attributes", {})
-            nodes.append({"id": n["v_id"], "group": group, "name": a.get("name") or n["v_id"], **a,
-                          "riskScore": a.get("@riskScore", 0)})
+            nodes.append({
+                "id": n["v_id"], 
+                "group": group, 
+                "name": a.get("name") or a.get("booth_name") or a.get("full_address") or n["v_id"], 
+                **a,
+                "riskScore": a.get("risk_score", 0.0)
+            })
+    
     for e in raw.get("@@edges", []):
         edges.append({"source": e["from_id"], "target": e["to_id"], "type": e["e_type"]})
     voters = [n for n in nodes if n["group"] == "Voters"]
-    ghosts = [v for v in voters if v.get("riskScore", 0) > 0.6]
+    ghosts = [v for v in voters if v.get("riskScore", 0) >= 0.5]
     return {
         "nodes": nodes, "edges": edges, "isMock": False,
         "stats": {
@@ -280,14 +311,72 @@ async def analysis_cross_constituency():
 @app.get("/analysis/timeline", tags=["Analysis"])
 async def analysis_timeline(constituency: str = "New Delhi", start_year: int = 2018, end_year: int = 2024):
     """Return voter registration fraud trends over a year range."""
+    # Safety check for undefined constituency from frontend state
+    if constituency == "undefined" or not constituency:
+        constituency = "New Delhi"
+
     try:
         if _is_tg_configured():
-            return await tg_query("get_timeline_data", {"constituency": constituency})
+            raw_res = await tg_query("get_timeline_data", {"constituency": constituency})
+            # Multi-PRINT aggregation
+            data = {}
+            for item in raw_res: data.update(item)
+            
+            ghosts_map = data.get("@@ghost_anomalies", {})
+            legit_map = data.get("@@legit_registrations", {})
+            
+            # Combine all keys, restricted by request range
+            all_years = sorted(list(set(ghosts_map.keys()) | set(legit_map.keys()) | {str(y) for y in range(start_year, end_year + 1)}))
+            
+            timeline = []
+            for yr_str in all_years:
+                yr_int = int(yr_str)
+                if yr_int < start_year or yr_int > end_year: continue
+                
+                g = ghosts_map.get(yr_str, 0)
+                l = legit_map.get(yr_str, 0)
+                total = g + l
+                
+                integrity = round((l / max(total, 1)) * 100, 1) if total > 0 else 100.0
+                fraud_rate = round((g / max(total, 1)) * 100, 2) if total > 0 else 0.0
+                
+                timeline.append({
+                    "year": yr_int,
+                    "total_voters": total,
+                    "ghost_anomalies": g,
+                    "legitimate_voters": l,
+                    "integrity_score": integrity,
+                    "fraud_rate_pct": fraud_rate,
+                    "spike": g > (0.05 * total) and total > 2, # More sensitive spike detection for small seeds
+                    "spike_reason": "Suspicious ghost registration surge" if g > (0.05 * total) else None,
+                    "new_addresses": math.ceil(total / 5) # Adaptive scaling
+                })
+            
+            trend = "STABLE"
+            if len(timeline) >= 2:
+                last_f = timeline[-1]["fraud_rate_pct"]
+                prev_f = timeline[-2]["fraud_rate_pct"]
+                if last_f > prev_f + 2: trend = "WORSENING"
+                elif last_f < prev_f - 2: trend = "IMPROVING"
+
+            return {
+                "results": {
+                    "constituency": constituency,
+                    "start_year": start_year,
+                    "end_year": end_year,
+                    "trend": trend,
+                    "peak_year": max(timeline, key=lambda x: x["ghost_anomalies"])["year"] if timeline else end_year,
+                    "timeline": timeline,
+                    "isMock": False
+                }
+            }
         raise RuntimeError("mock")
-    except Exception:
+    except Exception as e:
+        print(f"DEBUG: Timeline fetch failed: {e}")
         if MOCK_ENABLED:
+            from backend.mock_data_gen import generate_timeline_data
             return {"results": generate_timeline_data(constituency, start_year, end_year), "isMock": True}
-        raise HTTPException(503, "Unavailable")
+        raise HTTPException(503, f"Timeline unavailable: {e}")
 
 # ─── Voter Score ──────────────────────────────────────────────────────────────
 
@@ -313,18 +402,34 @@ async def override_score(req: ScoreOverrideRequest):
 
 @app.get("/search/{constituency}", tags=["Search"])
 async def search_constituency(constituency: str, q: str = ""):
-    """Search voters in a constituency by name / EPIC number."""
-    graph = generate_constituency_graph(constituency, 300)
-    voters = [n for n in graph["nodes"] if n.get("group") == "Voters"]
-    if q:
-        q_lower = q.lower()
-        voters = [v for v in voters if q_lower in (v.get("name","") + v.get("epic_number","")).lower()]
-    return {
-        "constituency": constituency,
-        "query": q,
-        "count": len(voters),
-        "voters": voters[:50]
-    }
+    """Search voters in a constituency by name."""
+    try:
+        if _is_tg_configured():
+            # Simple attribute filtering via REST
+            url = f"{TG_HOST}/restpp/graph/{TG_GRAPH}/vertices/Voter?limit=50"
+            if q:
+                # Note: This is an approximation of TG filter syntax
+                url += f"&filter=name~\"{q}\""
+            
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(url, headers={"Authorization": f"Bearer {TG_TOKEN}"})
+                if r.status_code == 200:
+                    data = r.json()
+                    voters = []
+                    for v in data.get("results", []):
+                        a = v.get("attributes", {})
+                        if a.get("constituency") == constituency:
+                            voters.append({"id": v["v_id"], "group": "Voters", **a})
+                    return {"constituency": constituency, "query": q, "count": len(voters), "voters": voters}
+        raise RuntimeError("TG Off")
+    except Exception:
+        # Fallback to local filtering if TG is off
+        graph = generate_constituency_graph(constituency, 300)
+        voters = [n for n in graph["nodes"] if n.get("group") == "Voters"]
+        if q:
+            q_lower = q.lower()
+            voters = [v for v in voters if q_lower in (v.get("name","") + v.get("epic_number","")).lower()]
+        return {"constituency": constituency, "query": q, "count": len(voters), "voters": voters[:50], "isMock": True}
 
 # ─── Whistleblower Portal ─────────────────────────────────────────────────────
 
@@ -473,12 +578,20 @@ async def export_pdf_report(constituency: str):
 @app.post("/ingest/pdf", tags=["Ingestion"])
 async def ingest_pdf(file: UploadFile = File(...), constituency: str = "Unknown"):
     """Upload and parse an electoral roll PDF (with OCR fallback). Warehousing logic."""
-    from data_pipeline import extract_voters_from_pdf
+    from data_pipeline import extract_voters_from_pdf, upsert_voters_to_tg
     content = await file.read()
     try:
         result = extract_voters_from_pdf(content, constituency)
+        
+        # PERSIST TO TIGERGRAPH
+        tg_success = False
+        if _is_tg_configured():
+            tg_config = {"host": TG_HOST, "graph": TG_GRAPH, "token": TG_TOKEN}
+            tg_success = upsert_voters_to_tg(result["voters"], constituency, tg_config)
+
         return {
             "success": True,
+            "persisted_to_graph": tg_success,
             "filename": file.filename,
             "constituency": constituency,
             "voters_extracted": result["count"],

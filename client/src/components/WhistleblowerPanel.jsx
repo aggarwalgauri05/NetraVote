@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, ShieldCheck, ShieldAlert, AlertOctagon, 
@@ -44,14 +45,20 @@ export default function WhistleblowerPanel({ constituency }) {
 
   const handleSubmit = async () => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 2500));
-    setResult({
-      report_id: `WBV-${Date.now()}-${Math.floor(Math.random() * 99999)}`,
-      verification_token: Math.random().toString(36).slice(2, 16).toUpperCase(),
-      message: 'PROTOCOL_ALPHA_FINALIZED: ENCRYPTED PAYLOAD TRANSMITTED TO CENTRAL ECI VAULT.'
-    });
-    setLoading(false);
-    setStep(3);
+    try {
+      const { data } = await axios.post('http://localhost:8000/whistleblower/report', form);
+      setResult({
+        report_id: data.report_id,
+        verification_token: data.verification_token,
+        message: data.message || 'PROTOCOL_ALPHA_FINALIZED: ENCRYPTED PAYLOAD TRANSMITTED TO CENTRAL ECI VAULT.'
+      });
+      setStep(3);
+    } catch (error) {
+      console.error('Submission failed:', error);
+      alert('Security breach in transmission protocol. Please retry.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

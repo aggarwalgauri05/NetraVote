@@ -1,4 +1,4 @@
-# TigerGraph Schema v4 — Ghost Voter Network Detection
+# TigerGraph Schema v5 — Ghost Voter Network Detection
 # Anti-Gravity Systems · NetraVote Intelligence
 
 USE GLOBAL
@@ -18,7 +18,8 @@ CREATE VERTEX Voter (
   constituency STRING,
   risk_score FLOAT DEFAULT 0.0,
   ml_score FLOAT DEFAULT 0.0,
-  batch_id STRING
+  batch_id STRING,
+  raw_line STRING
 ) WITH primary_id_as_attribute="true"
 
 CREATE VERTEX Address (
@@ -29,13 +30,16 @@ CREATE VERTEX Address (
   latitude FLOAT DEFAULT 0.0,
   longitude FLOAT DEFAULT 0.0,
   pagerank_score FLOAT DEFAULT 0.0,
-  voter_density INT DEFAULT 0
+  voter_density INT DEFAULT 0,
+  state STRING,
+  density_flag BOOL DEFAULT false
 ) WITH primary_id_as_attribute="true"
 
 CREATE VERTEX Booth (
   PRIMARY_ID booth_id STRING,
   booth_name STRING,
   constituency STRING,
+  state STRING,
   total_voters INT DEFAULT 0,
   anomaly_score FLOAT DEFAULT 0.0,
   overnight_flag BOOL DEFAULT false

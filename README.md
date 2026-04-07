@@ -124,7 +124,17 @@ cp .env.example .env
 python -m uvicorn main:app --reload --port 8000
 ```
 
-### 3. TigerGraph Schema
+### 3. Load Data & Anomalies
+
+To populate your TigerGraph instance with sample constituencies, voters, and synthetic fraud anomalies, run the following scripts from the `backend` directory:
+
+```bash
+cd backend
+python seed_rest.py
+python seed_anomalies_final.py
+```
+
+### 4. TigerGraph Schema
 
 ```bash
 # Run via TigerGraph GraphStudio or gsql CLI

@@ -5,6 +5,12 @@ import {
   Shield, LayoutDashboard, Database, AlertCircle, RefreshCw,
   Layers, Cpu, Radio, Target, Wifi, WifiOff, ChevronDown,
   Clock, Globe, ShieldAlert, MapPin, FileText, Upload, Activity,
+  Settings, 
+  Search, 
+  Bell, 
+  ExternalLink,
+  Menu,
+  X,
   Terminal, Share2, Scan, Fingerprint, Lock
 } from 'lucide-react';
 
@@ -21,44 +27,9 @@ import GlobalSidebar from './components/GlobalSidebar';
 import Sidebar from './components/Sidebar';
 import './index.css';
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = 'http://localhost:8000';
 
-// ─── Mock fallback data for offline/demo mode ─────────────────────────────────
-const buildMockData = (constituency) => {
-  const nodes = [];
-  const links = [];
-
-  // Add major hubs
-  nodes.push({ id: 'B-ND-101', group: 'TargetBooths', name: 'Booth Alpha', constituency, riskScore: 0 });
-  nodes.push({ id: 'B-ND-102', group: 'TargetBooths', name: 'Booth Beta', constituency, riskScore: 0 });
-  nodes.push({ id: 'ADDR-FRAUD-999', group: 'Addresses', name: 'Cluster Hub 99', full_address: 'Sector 4, Intelligence Zone', '@addressVoterCount': 850, riskScore: 0 });
-  nodes.push({ id: 'PIN-110001', group: 'Pins', name: 'DL-01', riskScore: 0 });
-
-  // Generate 1000+ nodes for massive big data visualization
-  for (let i = 1; i <= 1000; i++) {
-    const id = `VOTER-FRAUD-${i}`;
-    const hubId = i % 2 === 0 ? 'B-ND-101' : 'B-ND-102';
-    
-    nodes.push({
-      id, group: 'Voters', name: `Citizen ${i}`, age: 18 + (i % 60),
-      gender: i % 2 === 0 ? 'M' : 'F', epic_number: `EPIC-${20000 + i}`,
-      registration_date: '2024-01-15', riskScore: 0.75 + Math.random() * 0.25,
-      address_id: 'ADDR-FRAUD-999',
-      isHighRisk: true
-    });
-    
-    links.push({ source: id, target: 'ADDR-FRAUD-999', type: 'LIVES_AT' });
-    links.push({ source: id, target: hubId, type: 'REGISTERED_IN' });
-    
-    // Add cross-links for massive complexity
-    if (i % 30 === 0) {
-        links.push({ source: id, target: 'PIN-110001', type: 'PIN_LINK' });
-    }
-  }
-
-  const stats = { totalVoters: 1000, ghostVoters: 1000, legitimateVoters: 0, fraudHubs: 5, averageRiskScore: 0.95, integrityScore: 5 };
-  return { nodes, links, stats, isMock: true };
-};
+// ─── Backend Connectivity Protocol ──────────────────────────────────────────
 
 const DataStream = () => {
   return (
@@ -84,10 +55,10 @@ const DataStream = () => {
 const DemoTour = ({ onComplete }) => {
     const [step, setStep] = useState(0);
     const steps = [
-        { title: 'Democratic Trust', detail: 'Welcome to NetraVote. We ensure every vote counts by identifying registration anomalies through advanced pattern matching.', icon: <Shield size={20} /> },
-        { title: 'Neural Integrity', detail: 'Our engine scans thousands of records to find clusters of "ghost voters" sharing single physical addresses.', icon: <Cpu size={20} /> },
-        { title: 'Forensic Audit', detail: 'Generate legally-admissible evidence reports in one click to assist election officials.', icon: <FileText size={20} /> },
-        { title: 'System Ready', detail: 'Explore the network mapping or dive into the forensics to begin your audit.', icon: <Target size={20} /> }
+        { title: 'Election Integrity', detail: 'Welcome to NetraVote. We help identify recording errors and voter duplication using graph intelligence.', icon: <Shield size={20} /> },
+        { title: 'Detection Engine', detail: 'Our system scans thousands of records to find clusters of suspicious registrations at single addresses.', icon: <Cpu size={20} /> },
+        { title: 'Official Reports', detail: 'Generate evidence reports with a single click to assist in official verification.', icon: <FileText size={20} /> },
+        { title: 'Ready to Begin', detail: 'Navigate through the maps or check active alerts to start your review.', icon: <Target size={20} /> }
     ];
 
     return (
@@ -103,7 +74,7 @@ const DemoTour = ({ onComplete }) => {
                     <div className="w-16 h-16 rounded-2xl bg-coral-500/10 border border-coral-500/20 flex items-center justify-center mx-auto mb-6">
                         <div className="text-coral-600">{steps[step].icon}</div>
                     </div>
-                    <span className="text-[9px] font-bold text-coral-500 uppercase tracking-[0.4em] mb-3 block">SYSTEM_ONBOARDING_{step + 1}</span>
+                    <span className="text-[9px] font-bold text-coral-500 uppercase tracking-[0.4em] mb-3 block">SYSTEM_HELP_{step + 1}</span>
                     <h2 className="text-2xl font-bold text-slate-900 mb-4 tracking-tight">{steps[step].title}</h2>
                     <p className="text-slate-600 leading-relaxed text-sm mb-8">{steps[step].detail}</p>
                     <div className="flex items-center justify-between gap-4">
@@ -127,7 +98,8 @@ const DemoTour = ({ onComplete }) => {
 
 function App() {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState({ totalVoters: 0, ghostVoters: 0, highRisk: 0, mediumRisk: 0, addresses: 0, booths: 0 });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [constituency, setConstituency] = useState('New Delhi');
   const [constituencies, setConstituencies] = useState([]);
@@ -142,20 +114,49 @@ function App() {
   }, []);
 
   useEffect(() => {
-    setConstituencies([
-        { id: 'New Delhi', name: 'New Delhi Sector', state: 'Delhi' },
-        { id: 'South Delhi', name: 'South Delhi Zone', state: 'Delhi' },
-        { id: 'East Delhi', name: 'East Delhi District', state: 'Delhi' },
-    ]);
+    const fetchInit = async () => {
+        try {
+            const res = await axios.get(`${API_BASE}/constituencies`);
+            const fetched = res.data.constituencies || [];
+            setConstituencies(fetched);
+            if (fetched.length > 0 && !constituency) {
+                setConstituency(fetched[0].id);
+            }
+        } catch (err) {
+            console.error("Failed to fetch constituencies", err);
+            const fallback = [
+                { id: 'New Delhi', name: 'New Delhi', state: 'Delhi' },
+                { id: 'South Delhi', name: 'South Delhi', state: 'Delhi' },
+                { id: 'East Delhi', name: 'East Delhi', state: 'Delhi' },
+            ];
+            setConstituencies(fallback);
+            setConstituency(fallback[0].id);
+        }
+    };
+    fetchInit();
   }, []);
 
   const fetchGraph = useCallback(async (c) => {
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1500)); // Sophisticated delay for "Royal" feel
-    const mock = buildMockData(c);
-    setGraphData({ nodes: mock.nodes, links: mock.links || [] });
-    setStats(mock.stats);
-    setLoading(false);
+    try {
+        const res = await axios.get(`${API_BASE}/graph/network/${c}`);
+        const data = res.data;
+        // The backend returns 'edges', frontend NetworkGraph expects 'links'
+        setGraphData({ 
+            nodes: data.nodes || [], 
+            links: (data.edges || data.links || []).map(e => ({
+                source: e.source,
+                target: e.target,
+                type: e.type
+            }))
+        });
+        setStats(data.stats);
+    } catch (err) {
+        console.error("Graph Sync Failed", err);
+        // We could show a toast here if we had one
+    } finally {
+        setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchGraph(constituency); }, [constituency, fetchGraph]);
@@ -209,7 +210,7 @@ function App() {
               </motion.div>
             </motion.div>
             <div className="flex flex-col items-center gap-8">
-                <span className="text-[12px] font-bold tracking-[0.6em] text-royal-400/80 uppercase">Initializing_NetraVote_Protocol</span>
+                <span className="text-[12px] font-bold tracking-[0.6em] text-royal-400/80 uppercase">Loading_NetraVote_Engine</span>
                 <div className="w-80 h-[2px] bg-white/5 rounded-full overflow-hidden">
                     <motion.div 
                         initial={{ x: '-100%' }} animate={{ x: '100%' }}
@@ -222,14 +223,34 @@ function App() {
         )}
       </AnimatePresence>
 
-      <GlobalSidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <GlobalSidebar activeTab={activeTab} onTabChange={(tab) => { setActiveTab(tab); setSidebarOpen(false); }} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-w-0 h-full relative z-10">
+      <main className="flex-1 h-full min-h-0 bg-transparent flex flex-col relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-obsidian-950/40 via-transparent to-royal-950/20 pointer-events-none" />
         
-        {/* ── Main Operations Header ── */}
-        <header className="h-16 flex items-center justify-between px-4 lg:px-8 bg-obsidian-950/80 border-b border-white/5 backdrop-blur-xl shrink-0 z-50">
+        {/* ── Dashboard Header ── */}
+        <header className="h-[100px] border-b border-white/5 flex items-center justify-between px-6 md:px-12 relative z-50 backdrop-blur-3xl bg-obsidian-950/50">
+            <div className="flex items-center gap-4 md:gap-8">
+                <button 
+                    onClick={() => setSidebarOpen(true)}
+                    className="md:hidden p-3 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all"
+                >
+                    <Menu size={20} />
+                </button>
+                <div className="flex flex-col">
+                    <h2 className="text-[10px] font-black tracking-[0.6em] text-royal-500 uppercase italic mb-1">Administrative_Control</h2>
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl font-black text-white italic tracking-tighter uppercase font-display">{activeTab === 'network' ? 'Voter Mapping' : activeTab === 'analytics' ? 'Voter Insights' : activeTab === 'forensics' ? 'Fraud Alerts' : activeTab === 'timeline' ? 'Registration Trends' : activeTab === 'crossnet' ? 'Boundary Checks' : activeTab === 'geomap' ? 'Booth Map' : activeTab === 'upload' ? 'Upload Lists' : activeTab === 'audit' ? 'Audit Log' : 'Official Feedback'}</span>
+                        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest leading-none">System_Online</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="flex items-center gap-4 lg:gap-8">
-                <div className="flex flex-col gap-0.5">
+                <div className="hidden md:flex flex-col gap-0.5">
                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-coral-500 shadow-sm" />
                       Constituency Context
@@ -255,7 +276,7 @@ function App() {
                     </span>
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Protocol-Active.v8</span>
+                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">System-Active</span>
                     </div>
                 </div>
             </div>
@@ -276,65 +297,63 @@ function App() {
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-coral-500/10 border border-coral-500/20 text-coral-400 text-xs font-bold hover:bg-coral-500 hover:text-white transition-all shadow-sm active:scale-95"
                 >
                   <Activity size={14} className="animate-pulse" />
-                  <span className="hidden sm:block">Explain System</span>
+                  <span>System Tour</span>
                 </button>
             </div>
         </header>
 
         {/* ── Intelligence Content Area ── */}
-        <div className="flex-1 flex min-h-0">
-            <main className="flex-1 relative bg-obsidian-900 overflow-hidden p-0">
-                <AnimatePresence mode="wait">
-                    <motion.div 
-                        key={activeTab}
-                        initial={{ opacity: 0, y: 30, filter: "blur(10px)" }} 
-                        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} 
-                        exit={{ opacity: 0, y: -30, filter: "blur(10px)" }}
-                        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                        className="h-full w-full overflow-hidden"
-                    >
-                        {activeTab === 'network' && (
-                            <div className="h-full w-full relative">
-                                <div className="absolute top-6 left-6 md:top-10 md:left-10 z-20 flex flex-col gap-4 max-w-[200px] md:max-w-none">
-                                    <div className="px-4 py-3 md:px-6 md:py-4 rounded-2xl md:rounded-3xl bg-obsidian-950/80 border border-white/10 backdrop-blur-3xl flex items-center gap-3 md:gap-4 shadow-2xl">
-                                        <div className="p-2 rounded-xl bg-royal-500/20">
-                                            <Scan size={16} className="text-royal-400" />
-                                        </div>
-                                        <div className="flex flex-col overflow-hidden">
-                                            <span className="text-[9px] md:text-[10px] font-bold text-royal-500 uppercase tracking-[0.2em]">Spatial_Topology</span>
-                                            <span className="text-[10px] md:text-[12px] font-bold text-white tracking-widest truncate">LAYER_NET_RECON_V1</span>
-                                        </div>
+        <div className="flex-1 flex min-h-0 relative">
+            <AnimatePresence mode="wait">
+                <motion.div 
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 30, filter: "blur(10px)" }} 
+                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} 
+                    exit={{ opacity: 0, y: -30, filter: "blur(10px)" }}
+                    transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                    className="h-full w-full overflow-hidden"
+                >
+                    {activeTab === 'network' && (
+                        <div className="h-full w-full relative">
+                            <div className="absolute top-6 left-6 md:top-10 md:left-10 z-20 flex flex-col gap-4 max-w-[200px] md:max-w-none">
+                                <div className="px-4 py-3 md:px-6 md:py-4 rounded-2xl md:rounded-3xl bg-obsidian-950/80 border border-white/10 backdrop-blur-3xl flex items-center gap-3 md:gap-4 shadow-2xl">
+                                    <div className="p-2 rounded-xl bg-royal-500/20">
+                                        <Scan size={16} className="text-royal-400" />
                                     </div>
-                                    <div className="px-4 py-3 md:px-6 md:py-4 rounded-2xl md:rounded-3xl bg-obsidian-950/80 border border-white/10 backdrop-blur-3xl flex items-center gap-3 md:gap-4 shadow-2xl">
-                                        <div className="p-2 rounded-xl bg-rose-500/20">
-                                            <Fingerprint size={16} className="text-rose-400" />
-                                        </div>
-                                        <div className="flex flex-col overflow-hidden">
-                                            <span className="text-[9px] md:text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em]">Deep_Pattern</span>
-                                            <span className="text-[10px] md:text-[12px] font-bold text-white tracking-widest truncate">HUB_RECON_ACTIVE</span>
-                                        </div>
+                                    <div className="flex flex-col overflow-hidden">
+                                        <span className="text-[9px] md:text-[10px] font-bold text-royal-500 uppercase tracking-[0.2em]">Map_View</span>
+                                        <span className="text-[10px] md:text-[12px] font-bold text-white tracking-widest truncate">ACTIVE_SURVEY</span>
                                     </div>
                                 </div>
-                                <NetworkGraph 
-                                  graphData={graphData} 
-                                  onNodeClick={setSelectedNode}
-                                  selectedNode={selectedNode}
-                                />
+                                <div className="px-4 py-3 md:px-6 md:py-4 rounded-2xl md:rounded-3xl bg-obsidian-950/80 border border-white/10 backdrop-blur-3xl flex items-center gap-3 md:gap-4 shadow-2xl">
+                                    <div className="p-2 rounded-xl bg-rose-500/20">
+                                        <Fingerprint size={16} className="text-rose-400" />
+                                    </div>
+                                    <div className="flex flex-col overflow-hidden">
+                                        <span className="text-[9px] md:text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em]">Verification</span>
+                                        <span className="text-[10px] md:text-[12px] font-bold text-white tracking-widest truncate">HUB_ANALYSIS</span>
+                                    </div>
+                                </div>
                             </div>
-                        )}
-                        <div className="h-full w-full overflow-y-auto custom-scrollbar px-10 py-10">
-                          {activeTab === 'analytics' && <AnalyticsPanel stats={stats} constituency={constituency} />}
-                          {activeTab === 'forensics' && <ForensicsPanel stats={stats} constituency={constituency} />}
-                          {activeTab === 'timeline' && <TimelinePanel constituency={constituency} />}
-                          {activeTab === 'crossnet' && <CrossConstituencyPanel constituency={constituency} />}
-                          {activeTab === 'geomap' && <GeoMapPanel constituency={constituency} />}
-                          {activeTab === 'upload' && <BatchUploadPanel constituency={constituency} />}
-                          {activeTab === 'audit' && <AuditTrailPanel />}
-                          {activeTab === 'whistleblower' && <WhistleblowerPanel constituency={constituency} />}
+                            <NetworkGraph 
+                                graphData={graphData} 
+                                onNodeClick={setSelectedNode}
+                                selectedNode={selectedNode}
+                            />
                         </div>
-                    </motion.div>
-                </AnimatePresence>
-            </main>
+                    )}
+                    <div className="h-full w-full overflow-y-auto custom-scrollbar px-4 md:px-10 py-6 md:py-10">
+                        {activeTab === 'analytics' && <AnalyticsPanel graphData={graphData} stats={stats} constituency={constituency} />}
+                        {activeTab === 'forensics' && <ForensicsPanel stats={stats} constituency={constituency} />}
+                        {activeTab === 'timeline' && <TimelinePanel constituency={constituency} />}
+                        {activeTab === 'crossnet' && <CrossConstituencyPanel constituency={constituency} />}
+                        {activeTab === 'geomap' && <GeoMapPanel constituency={constituency} />}
+                        {activeTab === 'upload' && <BatchUploadPanel constituency={constituency} />}
+                        {activeTab === 'audit' && <AuditTrailPanel />}
+                        {activeTab === 'whistleblower' && <WhistleblowerPanel constituency={constituency} />}
+                    </div>
+                </motion.div>
+            </AnimatePresence>
 
             {/* Sidebar Intel (Only visible on Network) */}
             <AnimatePresence>
@@ -344,7 +363,7 @@ function App() {
                         animate={{ x: 0, opacity: 1 }} 
                         exit={{ x: 100, opacity: 0 }}
                         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                        className="hidden lg:block w-[30rem] shrink-0"
+                        className="hidden lg:block w-[30rem] shrink-0 border-l border-white/5 bg-obsidian-950/20 backdrop-blur-md"
                     >
                         <Sidebar 
                             stats={stats} 
@@ -357,8 +376,7 @@ function App() {
         </div>
 
         {showTour && <DemoTour onComplete={() => setShowTour(false)} />}
-
-      </div>
+      </main>
     </div>
   );
 }

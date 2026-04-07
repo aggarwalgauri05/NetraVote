@@ -99,3 +99,55 @@ def detect_phonetic_duplicates(voters: list) -> list:
         return duplicates
     except ImportError:
         return []
+def upsert_voters_to_tg(voters: list, constituency: str, tg_config: dict):
+    """Upsert extracted voter data into TigerGraph."""
+    try:
+        import pyTigerGraph as tg
+        conn = tg.TigerGraphConnection(
+            host=tg_config["host"],
+            graphname=tg_config["graph"],
+            apiToken=tg_config["token"]
+        )
+
+        v_voter, v_addr, v_booth = {}, {}, {}
+        e_reg, e_assign, e_located = [], [], []
+
+        # Default Booth & Constituency
+        const_id = constituency.replace(" ", "_")
+        conn.upsertVertices("Constituency", [(const_id, {"const_name": constituency, "state": "Unknown"})])
+
+        for v in voters:
+            epic = v["epic_number"]
+            addr_text = normalize_address(v.get("raw_line", "UNKNOWN"))
+            addr_id = f"ADDR_{hash(addr_text) % 10**8}"
+            booth_id = f"BOOTH_{const_id}_001" # Default booth for prototype
+
+            # Vertices
+            v_voter[epic] = {
+                "name": v["name"],
+                "age": v["age"],
+                "epic_number": epic,
+                "registration_date": v.get("added_date", "2024-01-01 00:00:00"),
+                "constituency": constituency
+            }
+            v_addr[addr_id] = {"full_address": addr_text, "normalized": addr_text}
+            v_booth[booth_id] = {"booth_name": f"Booth 001 - {constituency}", "constituency": constituency}
+
+            # Edges
+            e_reg.append((epic, addr_id, {}))
+            e_assign.append((epic, booth_id, {}))
+            e_located.append((addr_id, booth_id, {}))
+
+        # Perform Upsert
+        conn.upsertVertices("Voter", [(k, v) for k, v in v_voter.items()])
+        conn.upsertVertices("Address", [(k, v) for k, v in v_addr.items()])
+        conn.upsertVertices("Booth", [(k, v) for k, v in v_booth.items()])
+
+        conn.upsertEdges("Voter", "REGISTERED_AT", "Address", e_reg)
+        conn.upsertEdges("Voter", "ASSIGNED_TO", "Booth", e_assign)
+        conn.upsertEdges("Booth", "BELONGS_TO", "Constituency", [(booth_id, const_id, {})])
+
+        return True
+    except Exception as e:
+        print(f"TigerGraph Upsert Failed: {e}")
+        return False

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useEffect } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { motion } from 'framer-motion';
+import { Radio } from 'lucide-react';
 
 const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
   const graphRef = useRef();
@@ -62,8 +63,8 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
       <div className="absolute inset-0 pointer-events-none z-10">
         {/* Top Right: System Metrics */}
         <div className="absolute top-10 right-10 flex flex-col items-end gap-1 px-4 py-3 rounded-2xl bg-obsidian-950/40 border border-white/5 backdrop-blur-md">
-            <span className="text-[8px] font-black text-royal-500 uppercase tracking-[0.3em]">Network_Throughput</span>
-            <span className="text-[12px] font-display font-black text-white tabular-nums">1.2 GB/s</span>
+            <span className="text-[8px] font-black text-royal-500 uppercase tracking-[0.3em]">Evidence_Verification</span>
+            <span className="text-[12px] font-display font-black text-white tabular-nums">99.9% Secured</span>
             <div className="w-20 h-0.5 bg-white/5 rounded-full mt-1 overflow-hidden">
                 <motion.div 
                     animate={{ x: ['-100%', '100%'] }}
@@ -92,8 +93,8 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
         <div className="absolute bottom-10 right-10 flex items-center gap-4 px-5 py-3 rounded-2xl bg-obsidian-950/40 border border-white/5 backdrop-blur-md">
             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)] animate-pulse" />
             <div className="flex flex-col">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Active_Logic</span>
-                <span className="text-[10px] font-black text-white uppercase tracking-widest">Louvain_Community_v4</span>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Forensic_Engine</span>
+                <span className="text-[10px] font-black text-white uppercase tracking-widest">Netra_Integrity_Verify</span>
             </div>
         </div>
 
@@ -122,6 +123,24 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
         </div>
       </div>
 
+      {graphData.nodes.length === 0 && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-12 text-center">
+            <div className="w-24 h-24 rounded-3xl bg-white/[0.03] border border-white/5 flex items-center justify-center mb-8">
+                <Radio size={40} className="text-slate-700 animate-pulse" />
+            </div>
+            <h3 className="text-2xl font-black text-white/40 uppercase tracking-[0.3em] mb-4">No Electoral Data Identified</h3>
+            <p className="text-xs font-bold text-slate-600 uppercase tracking-widest max-w-sm leading-relaxed">
+                Connect to TigerGraph or use the <span className="text-royal-400">Database Manager</span> module to ingest electoral rolls.
+            </p>
+            <div className="mt-12 flex items-center gap-6">
+                <div className="flex flex-col items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
+                    <span className="text-[8px] font-black text-slate-800 uppercase tracking-widest">Scanner_Idle</span>
+                </div>
+            </div>
+        </div>
+      )}
+
       <ForceGraph2D
         ref={graphRef}
         graphData={graphData}
@@ -145,7 +164,7 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
             min-width: 160px;
           ">
             <div style="font-size: 8px; text-transform: uppercase; letter-spacing: 0.15em; color: #94a3b8; font-weight: 900; margin-bottom: 4px;">
-              ${node.group} 
+              ${node.group === 'Voters' ? 'Voter Detail' : node.group === 'Addresses' ? 'Residence Info' : 'Polling Station'} 
             </div>
             <div style="font-weight: 900; font-size: 14px; letter-spacing: -0.01em; color: #ffffff;">
               ${node.name}

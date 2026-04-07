@@ -7,15 +7,15 @@ import { motion } from 'framer-motion';
 
 const GlobalSidebar = ({ activeTab, onTabChange }) => {
   const tabs = [
-    { id: 'network',       icon: <Activity size={18} />,        label: 'Network Matrix' },
-    { id: 'analytics',     icon: <LayoutDashboard size={18} />, label: 'Intel Analytics' },
-    { id: 'forensics',     icon: <Cpu size={18} />,             label: 'Quantum Forensics' },
-    { id: 'timeline',      icon: <Clock size={18} />,           label: 'Temporal Flux' },
-    { id: 'crossnet',      icon: <Globe size={18} />,           label: 'Cross-Net Nexus' },
-    { id: 'geomap',        icon: <MapPin size={18} />,          label: 'Geo-Spatial' },
-    { id: 'upload',        icon: <Upload size={18} />,          label: 'Data Ingestion' },
-    { id: 'audit',         icon: <FileText size={18} />,        label: 'Immutable Audit' },
-    { id: 'whistleblower', icon: <ShieldAlert size={18} />,     label: 'Whistleblower' },
+    { id: 'network',       icon: <Activity size={18} />,        label: 'Voter Mapping' },
+    { id: 'analytics',     icon: <LayoutDashboard size={18} />, label: 'Voter Insights' },
+    { id: 'forensics',     icon: <Cpu size={18} />,             label: 'Fraud Alerts' },
+    { id: 'timeline',      icon: <Clock size={18} />,           label: 'Registration Trends' },
+    { id: 'crossnet',      icon: <Globe size={18} />,           label: 'Boundary Checks' },
+    { id: 'geomap',        icon: <MapPin size={18} />,          label: 'Booth Map' },
+    { id: 'upload',        icon: <Upload size={18} />,          label: 'Upload Lists' },
+    { id: 'audit',         icon: <FileText size={18} />,        label: 'Audit Log' },
+    { id: 'whistleblower', icon: <ShieldAlert size={18} />,     label: 'Official Feedback' },
   ];
 
   return (
@@ -23,7 +23,7 @@ const GlobalSidebar = ({ activeTab, onTabChange }) => {
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-      className="w-[280px] h-full glass-panel border-r border-white/5 flex flex-col z-[100] relative overflow-hidden"
+      className="hidden md:flex w-[280px] h-full glass-panel border-r border-white/5 flex-col z-[100] relative overflow-hidden shrink-0"
     >
       <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-royal-500/20 to-transparent" />
       
@@ -37,7 +37,7 @@ const GlobalSidebar = ({ activeTab, onTabChange }) => {
             </div>
           </div>
           <div className="flex flex-col">
-            <span className="text-lg font-black tracking-tighter text-white font-display">NETRAVOTE</span>
+            <span className="text-lg font-black tracking-tighter text-white font-display uppercase italic">NETRAVOTE</span>
             <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
                 <span className="text-[10px] font-bold text-slate-500 tracking-[0.2em] uppercase">Core_Active</span>
@@ -51,39 +51,49 @@ const GlobalSidebar = ({ activeTab, onTabChange }) => {
         <div className="px-4 mb-4">
             <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">Operational Modules</span>
         </div>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={`w-full group relative flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-300 ${activeTab === tab.id ? 'bg-royal-500/10' : 'hover:bg-white/[0.03]'}`}
-          >
-            {activeTab === tab.id && (
-              <motion.div 
-                layoutId="sidebar-active-pill"
-                className="absolute inset-0 bg-royal-500/5 rounded-2xl border border-royal-500/20"
-                transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
-              />
-            )}
-            
-            <div className={`relative z-10 transition-colors duration-300 ${activeTab === tab.id ? 'text-royal-400' : 'text-slate-500 group-hover:text-slate-300'}`}>
-              {tab.icon}
-            </div>
-            
-            <span className={`relative z-10 text-xs font-bold tracking-wide transition-all duration-300 uppercase ${activeTab === tab.id ? 'text-white translate-x-1' : 'text-slate-500 group-hover:text-slate-300'}`}>
-              {tab.label}
-            </span>
+        {tabs.map(tab => {
+          const isActive = activeTab === tab.id;
+          const isForensics = tab.id === 'forensics';
+          const themeBg = isForensics ? 'bg-rose-500/10' : 'bg-royal-500/10';
+          const themeBorder = isForensics ? 'border-rose-500/20' : 'border-royal-500/20';
+          const themeText = isForensics ? 'text-rose-400' : 'text-royal-400';
+          const themeDot = isForensics ? 'bg-rose-500' : 'bg-royal-500';
+          const themeShadow = isForensics ? 'shadow-[0_0_15px_rgba(244,63,94,0.6)]' : 'shadow-[0_0_15px_rgba(59,130,246,0.6)]';
 
-            {activeTab === tab.id && (
-              <motion.div 
-                layoutId="sidebar-dot"
-                className="absolute left-[-10px] w-1.5 h-6 bg-royal-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)]"
-                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-              />
-            )}
-            
-            <ChevronRight size={12} className={`relative z-10 ml-auto transition-all ${activeTab === tab.id ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}`} />
-          </button>
-        ))}
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={`w-full group relative flex items-center gap-4 px-5 py-3.5 rounded-2xl transition-all duration-300 ${isActive ? themeBg : 'hover:bg-white/[0.03]'}`}
+            >
+              {isActive && (
+                <motion.div 
+                  layoutId="sidebar-active-pill"
+                  className={`absolute inset-0 ${isForensics ? 'bg-rose-500/5' : 'bg-royal-500/5'} rounded-2xl border ${themeBorder}`}
+                  transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
+                />
+              )}
+              
+              <div className={`relative z-10 transition-colors duration-300 ${isActive ? themeText : 'text-slate-500 group-hover:text-slate-300'}`}>
+                {tab.icon}
+              </div>
+              
+              <span className={`relative z-10 text-[11px] font-black tracking-wide transition-all duration-300 uppercase ${isActive ? 'text-white translate-x-1' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                {tab.label}
+              </span>
+
+              {isActive && (
+                <motion.div 
+                  layoutId="sidebar-dot"
+                  className={`absolute left-[-10px] w-1.5 h-6 ${themeDot} rounded-full ${themeShadow}`}
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
+              
+              <ChevronRight size={12} className={`relative z-10 ml-auto transition-all ${isActive ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}`} />
+            </button>
+          );
+        })}
       </nav>
 
       {/* ── Footer ── */}

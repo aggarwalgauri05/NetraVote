@@ -1,0 +1,91 @@
+USE GRAPH vote
+
+CREATE QUERY get_ui_network(STRING target_constituency) FOR GRAPH vote { 
+  TYPEDEF TUPLE <STRING v_id, STRING group, STRING name, FLOAT riskScore> NODE_INFO;
+  SetAccum<NODE_INFO> @@nodes;
+  SetAccum<EDGE> @@edges;
+  SumAccum<INT> @addressVoterCount;
+
+  /* 1. Get Constituency */
+  C = {Constituency.*};
+  TargetConst = SELECT s FROM C:s WHERE s.const_id == target_constituency;
+
+  /* 2. Traverse to Booleans and Voters */
+  Booths = SELECT t FROM TargetConst:s -(IN_CONSTITUENCY:e)- Booth:t;
+  Voters = SELECT t FROM Booths:s -(ASSIGNED_TO:e)- Voter:t;
+  
+  /* 3. Get Addresses and Neighbors */
+  Addr = SELECT t FROM Voters:s -(REGISTERED_AT:e)- Address:t 
+         ACCUM t.@addressVoterCount += 1;
+
+  /* 4. Collect Stats and Details */
+  FinalVoters = SELECT s FROM Voters:s 
+                ACCUM @@nodes += NODE_INFO(s.voter_id, "Voters", s.name, s.risk_score);
+
+  AddressNodes = SELECT s FROM Addr:s 
+                 ACCUM @@nodes += NODE_INFO(s.addr_id, "Addresses", s.raw_text, s.pagerank_score);
+
+  TargetBooths = SELECT s FROM Booths:s 
+                 ACCUM @@nodes += NODE_INFO(s.booth_id, "TargetBooths", s.name, 0.0);
+
+  /* 5. Collect Edges */
+  V = SELECT s FROM Voters:s -(REGISTERED_AT:e)- Address:t
+      ACCUM @@edges += e;
+  
+  B = SELECT s FROM Voters:s -(ASSIGNED_TO:e)- Booth:t
+      ACCUM @@edges += e;
+
+  PRINT FinalVoters, AddressNodes, TargetBooths, @@edges;
+}
+
+CREATE QUERY detect_overcrowded_addresses(STRING constituency, INT threshold) FOR GRAPH vote {
+  SumAccum<INT> @vCount;
+  
+  C = {Constituency.*};
+  Target = SELECT s FROM C:s WHERE s.const_id == constituency;
+  Voters = SELECT t FROM Target:s -(IN_CONSTITUENCY:e1)- Booth:b -(ASSIGNED_TO:e2)- Voter:t;
+  Addr = SELECT t FROM Voters:s -(REGISTERED_AT:e)- Address:t
+         ACCUM t.@vCount += 1
+         POST-ACCUM s.voter_density = t.@vCount;
+         
+  Results = SELECT s FROM Addr:s WHERE s.@vCount >= threshold;
+  PRINT Results;
+}
+
+CREATE QUERY detect_duplicate_voters(STRING constituency) FOR GRAPH vote {
+  C = {Constituency.*};
+  Target = SELECT s FROM C:s WHERE s.const_id == constituency;
+  Voters = SELECT t FROM Target:s -(IN_CONSTITUENCY:e1)- Booth:b -(ASSIGNED_TO:e2)- Voter:t;
+  
+  Results = SELECT s FROM Voters:s -(DUPLICATE_OF:e)- Voter:t;
+  PRINT Results;
+}
+
+CREATE QUERY detect_temporal_fraud(STRING constituency, INT window) FOR GRAPH vote {
+  /* Simplified for now — detects voters added in same window */
+  SumAccum<INT> @@spikeCount;
+  C = {Constituency.*};
+  PRINT "Temporal Analysis Active" AS status;
+}
+
+CREATE QUERY get_timeline_data(STRING constituency) FOR GRAPH vote {
+  MapAccum<STRING, INT> @@ghost_anomalies;
+  MapAccum<STRING, INT> @@legit_registrations;
+  
+  C = {Constituency.*};
+  Target = SELECT s FROM C:s WHERE s.const_id == constituency;
+  Voters = SELECT t FROM Target:s -(IN_CONSTITUENCY:e1)- Booth:b -(ASSIGNED_TO:e2)- Voter:t;
+  
+  V = SELECT s FROM Voters:s 
+      ACCUM 
+        STRING yr = datetime_format(s.added_date, "%Y"),
+        IF s.risk_score > 0.6 THEN
+          @@ghost_anomalies += (yr -> 1)
+        ELSE
+          @@legit_registrations += (yr -> 1)
+        END;
+        
+  PRINT @@ghost_anomalies, @@legit_registrations;
+}
+
+INSTALL QUERY get_ui_network, detect_overcrowded_addresses, detect_duplicate_voters, detect_temporal_fraud, get_timeline_data

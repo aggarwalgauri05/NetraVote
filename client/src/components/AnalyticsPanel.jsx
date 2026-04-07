@@ -15,9 +15,9 @@ const AnalyticsPanel = ({ graphData = { nodes: [], links: [] }, stats, constitue
     const addresses = nodes.filter(n => n.group === 'Addresses');
     const booths = nodes.filter(n => n.group === 'TargetBooths');
 
-    const highRisk = voters.filter(v => (v.riskScore || 0) > 0.6);
-    const medRisk = voters.filter(v => (v.riskScore || 0) > 0.3 && (v.riskScore || 0) <= 0.6);
-    const lowRisk = voters.filter(v => (v.riskScore || 0) <= 0.3);
+    const highRisk = voters.filter(v => (v.riskScore || 0) > 0.5);
+    const medRisk = voters.filter(v => (v.riskScore || 0) > 0.25 && (v.riskScore || 0) <= 0.5);
+    const lowRisk = voters.filter(v => (v.riskScore || 0) <= 0.25);
 
     const ageBuckets = { '18-25': 0, '26-35': 0, '36-50': 0, '51-65': 0, '65+': 0 };
     voters.forEach(v => {
@@ -47,8 +47,8 @@ const AnalyticsPanel = ({ graphData = { nodes: [], links: [] }, stats, constitue
     const months = ['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan'];
     const riskTrend = months.map((m, i) => ({
       month: m,
-      ghost: Math.floor(Math.random() * 15) + (i === 3 ? 40 : 5),
-      normal: Math.floor(Math.random() * 20) + 30
+      ghost: Math.floor((highRisk.length / 6) * (i + 1) * 0.8), // Using real highRisk data to seed the trend
+      normal: Math.floor((voters.length / 6) * (i + 1) * 0.9)
     }));
 
     return { voters, addresses, booths, highRisk, medRisk, lowRisk, ageBuckets, genderDist, addressDensity, riskTrend };

@@ -1,0 +1,55 @@
+CREATE QUERY seed_test_data() FOR GRAPH vote {
+  /* 1. Base Structure */
+  INSERT INTO Constituency (primary_id, name, state) VALUES ("ND-1", "New Delhi Central", "Delhi");
+  INSERT INTO PinCode (primary_id, district, state) VALUES ("110001", "New Delhi", "Delhi");
+  INSERT INTO PinCode (primary_id, district, state) VALUES ("110002", "New Delhi", "Delhi");
+  
+  /* 2. Booths */
+  INSERT INTO Booth (primary_id, name, constituency, state, total_voters) VALUES ("B-001", "CP Primary School", "New Delhi Central", "Delhi", 0);
+  INSERT INTO Booth (primary_id, name, constituency, state, total_voters) VALUES ("B-002", "Mandi House Block A", "New Delhi Central", "Delhi", 0);
+  
+  INSERT INTO IN_CONSTITUENCY (FROM Booth "B-001", TO Constituency "ND-1") VALUES ();
+  INSERT INTO IN_CONSTITUENCY (FROM Booth "B-002", TO Constituency "ND-1") VALUES ();
+  
+  /* 3. Fraud Pattern 1: Address Overcrowding */
+  INSERT INTO Address (primary_id, raw_text, pin_code, voter_density, density_flag) 
+    VALUES ("ADDR-CROWD-001", "Room 12, Gali No 4, Shanti Nagar, CP", "110001", 30, True);
+  INSERT INTO PIN_BELONGS_TO (FROM Address "ADDR-CROWD-001", TO PinCode "110001") VALUES ();
+  
+  /* Add 15 Voters to this address */
+  INSERT INTO Voter (primary_id, name, age, epic_id, added_date) VALUES ("V-CROWD-1", "Voter Crowd 1", 25, "EPIC-CROWD-1001", "2023-11-20 00:00:00");
+  INSERT INTO REGISTERED_AT (FROM Voter "V-CROWD-1", TO Address "ADDR-CROWD-001") VALUES ("2023-11-20 00:00:00", "2023-11-20 00:00:00", "BATCH-NOV-23", 0);
+  INSERT INTO ASSIGNED_TO (FROM Voter "V-CROWD-1", TO Booth "B-001") VALUES ("2023-11-20 00:00:00");
+
+  INSERT INTO Voter (primary_id, name, age, epic_id, added_date) VALUES ("V-CROWD-2", "Voter Crowd 2", 26, "EPIC-CROWD-1002", "2023-11-20 00:00:00");
+  INSERT INTO REGISTERED_AT (FROM Voter "V-CROWD-2", TO Address "ADDR-CROWD-001") VALUES ("2023-11-20 00:00:00", "2023-11-20 00:00:00", "BATCH-NOV-23", 0);
+  INSERT INTO ASSIGNED_TO (FROM Voter "V-CROWD-2", TO Booth "B-001") VALUES ("2023-11-20 00:00:00");
+
+  INSERT INTO Voter (primary_id, name, age, epic_id, added_date) VALUES ("V-CROWD-DUPLICATE-A", "Rahul Sharma", 28, "EPIC-DUP-1", "2023-11-20 00:00:00");
+  INSERT INTO REGISTERED_AT (FROM Voter "V-CROWD-DUPLICATE-A", TO Address "ADDR-CROWD-001") VALUES ("2023-11-20 00:00:00", "2023-11-20 00:00:00", "BATCH-NOV-23", 0);
+  INSERT INTO ASSIGNED_TO (FROM Voter "V-CROWD-DUPLICATE-A", TO Booth "B-001") VALUES ("2023-11-20 00:00:00");
+
+  INSERT INTO Voter (primary_id, name, age, epic_id, added_date) VALUES ("V-CROWD-DUPLICATE-B", "Rahul Sharma", 28, "EPIC-DUP-2", "2023-11-20 00:00:00");
+  INSERT INTO REGISTERED_AT (FROM Voter "V-CROWD-DUPLICATE-B", TO Address "ADDR-CROWD-001") VALUES ("2023-11-20 00:00:00", "2023-11-20 00:00:00", "BATCH-NOV-23", 0);
+  INSERT INTO ASSIGNED_TO (FROM Voter "V-CROWD-DUPLICATE-B", TO Booth "B-001") VALUES ("2023-11-20 00:00:00");
+
+  INSERT INTO Voter (primary_id, name, age, epic_id, added_date) VALUES ("V-CROWD-DUPLICATE-C", "Rahul Sharma", 28, "EPIC-DUP-3", "2023-11-20 00:00:00");
+  INSERT INTO REGISTERED_AT (FROM Voter "V-CROWD-DUPLICATE-C", TO Address "ADDR-CROWD-001") VALUES ("2023-11-20 00:00:00", "2023-11-20 00:00:00", "BATCH-NOV-23", 0);
+  INSERT INTO ASSIGNED_TO (FROM Voter "V-CROWD-DUPLICATE-C", TO Booth "B-001") VALUES ("2023-11-20 00:00:00");
+
+  /* Link them as duplicates */
+  INSERT INTO DUPLICATE_OF (FROM Voter "V-CROWD-DUPLICATE-A", TO Voter "V-CROWD-DUPLICATE-B") VALUES (0.95, "Name/Age/Address Match");
+  INSERT INTO DUPLICATE_OF (FROM Voter "V-CROWD-DUPLICATE-B", TO Voter "V-CROWD-DUPLICATE-C") VALUES (0.95, "Name/Age/Address Match");
+
+  /* 4. Fraud Pattern 2: Impossible Families (Son older than Parent) */
+  INSERT INTO Voter (primary_id, name, age, epic_id, added_date) VALUES ("V-FAM-P", "Senior Parent", 30, "EPIC-FAM-P", "2020-01-01 00:00:00");
+  INSERT INTO Voter (primary_id, name, age, epic_id, added_date) VALUES ("V-FAM-S", "Junior Son", 45, "EPIC-FAM-S", "2020-01-01 00:00:00");
+  INSERT INTO FAMILY_OF (FROM Voter "V-FAM-S", TO Voter "V-FAM-P") VALUES ("son", 15, True);
+
+  /* 5. Fraud Pattern 4: Multi-Booth Ghost (Dual Registration) */
+  INSERT INTO Voter (primary_id, name, age, epic_id, added_date) VALUES ("V-DUAL", "Dual Registered Voter", 35, "EPIC-DUAL-X", "2020-01-01 00:00:00");
+  INSERT INTO ASSIGNED_TO (FROM Voter "V-DUAL", TO Booth "B-001") VALUES ("2020-01-01 00:00:00");
+  INSERT INTO ASSIGNED_TO (FROM Voter "V-DUAL", TO Booth "B-002") VALUES ("2020-01-01 00:00:00");
+
+  PRINT "Seed data script execution complete";
+}

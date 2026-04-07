@@ -1,0 +1,4 @@
+id,address,pincode,state,density
+ADDR_ND_GHOST,"Flat 101, Block C, Green Park, New Delhi",110016,Delhi,35
+ADDR_VAR_SPIKE,"Assi Ghat Tower, Varanasi",221001,Uttar Pradesh,1
+ADDR_MUM_DUP_1,"Shivaji Park Apt 1, Mumbai",400028,Maharashtra,2
