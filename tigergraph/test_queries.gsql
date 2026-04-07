@@ -1,0 +1,99 @@
+USE GRAPH vote
+
+CREATE OR REPLACE QUERY compute_risk_scores() FOR GRAPH vote {
+  SumAccum<INT> @addressVoterCount;
+  SumAccum<INT> @epicDuplicateCount;
+  SumAccum<FLOAT> @riskScore;
+  MapAccum<STRING, SumAccum<INT>> @@epicMap;
+
+  // Pass 1: Global EPIC counting for duplication check
+  Voters = {Voter.*};
+  GlobalVoters = SELECT v FROM Voters:v
+                 ACCUM @@epicMap += (v.epic_number -> 1);
+
+  // Pass 2: Address Density Check
+  Addresses = {Address.*};
+  DensityCheck = SELECT a FROM Voters:v -(REGISTERED_AT:e)-> Address:a
+                  ACCUM a.@addressVoterCount += 1;
+
+  // Pass 3: Final Scoring Logic
+  ScoredVoters = SELECT v FROM Voters:v 
+                 ACCUM 
+                   v.@epicDuplicateCount = @@epicMap.get(v.epic_number);
+                   
+  // We need the address count on voter
+  ScoredVotersAddr = SELECT v FROM Voters:v -(REGISTERED_AT:e)-> Address:a
+                     ACCUM v.@addressVoterCount = a.@addressVoterCount;
+
+  ScoredVotersFinal = SELECT v FROM Voters:v
+                  POST-ACCUM
+                    FLOAT addressRisk = 0,
+                    FLOAT epicRisk = 0,
+                    FLOAT boothRisk = 0,
+                    FLOAT familyRisk = 0,
+                    
+                    IF v.@addressVoterCount > 30 THEN addressRisk = 1.0 END,
+                    IF v.@epicDuplicateCount > 1 THEN epicRisk = 1.0 END,
+                    IF v.outdegree("ASSIGNED_TO") > 1 THEN boothRisk = 1.0 END,
+                    IF v.outdegree("FAMILY_OF") > 0 THEN familyRisk = 1.0 END,
+                    
+                    v.@riskScore = (addressRisk * 0.4) + (epicRisk * 0.3) + (boothRisk * 0.15) + (familyRisk * 0.15),
+                    v.risk_score = v.@riskScore;
+
+  PRINT ScoredVotersFinal[ScoredVotersFinal.voter_id, ScoredVotersFinal.name, ScoredVotersFinal.@riskScore, ScoredVotersFinal.@addressVoterCount] AS results;
+}
+
+CREATE OR REPLACE QUERY get_ui_network(STRING target_constituency = "New Delhi", INT max_voters = 500) FOR GRAPH vote {
+  SumAccum<INT> @addressVoterCount;
+  SumAccum<INT> @epicCount;
+  SumAccum<INT> @boothCount;
+  SumAccum<FLOAT> @riskScore;
+  MapAccum<STRING, SumAccum<INT>> @@epicMap;
+  SetAccum<EDGE> @@edges;
+  OrAccum @visited;
+
+  Voters = {Voter.*};
+  AllVoters = SELECT v FROM Voters:v ACCUM @@epicMap += (v.epic_number -> 1);
+
+  StartBooths = {Booth.*};
+  TargetBooths = SELECT b FROM StartBooths:b 
+                 WHERE b.constituency == target_constituency 
+                 ACCUM b.@visited = true;
+ 
+  VotersInConstituency = SELECT v FROM Voter:v -(ASSIGNED_TO:e)-> Booth:b
+                         WHERE b.@visited
+                         ACCUM @@edges += e
+                         LIMIT max_voters;
+
+  AddressNodes = SELECT a FROM VotersInConstituency:v -(REGISTERED_AT:e)-> Address:a
+                 ACCUM a.@addressVoterCount += 1, @@edges += e;
+
+  // We do an inner join to get address counts, but write to @addressVoterCount on Voter
+  TempVoters = SELECT v FROM VotersInConstituency:v -(REGISTERED_AT:e)-> Address:a
+                ACCUM v.@addressVoterCount = a.@addressVoterCount;
+
+  FinalVoters = SELECT v FROM VotersInConstituency:v
+                ACCUM 
+                  v.@epicCount = @@epicMap.get(v.epic_number),
+                  v.@boothCount = v.outdegree("ASSIGNED_TO")
+                POST-ACCUM
+                    FLOAT addressRisk = 0,
+                    FLOAT epicRisk = 0,
+                    FLOAT boothRisk = 0,
+                    FLOAT familyRisk = 0,
+                    
+                    IF v.@addressVoterCount > 30 THEN addressRisk = 1.0 END,
+                    IF v.@epicCount > 1 THEN epicRisk = 1.0 END,
+                    IF v.@boothCount > 1 THEN boothRisk = 1.0 END,
+                    IF v.outdegree("FAMILY_OF") > 0 THEN familyRisk = 1.0 END,
+                    
+                    v.@riskScore = (addressRisk * 0.4) + (epicRisk * 0.3) + (boothRisk * 0.15) + (familyRisk * 0.15),
+                    v.risk_score = v.@riskScore;
+
+  Pins = SELECT p FROM AddressNodes:a -(LOCATED_IN:e)- PinCode:p
+         ACCUM @@edges += e;
+
+  PRINT TargetBooths, FinalVoters, AddressNodes, Pins, @@edges;
+}
+
+INSTALL QUERY compute_risk_scores, get_ui_network

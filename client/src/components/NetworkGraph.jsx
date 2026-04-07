@@ -1,10 +1,12 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { motion } from 'framer-motion';
 import { Radio } from 'lucide-react';
 
 const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
   const graphRef = useRef();
+  const containerRef = useRef();
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
   // Dark Theme Palette - Quantum/Neural Aesthetic
   const COLORS = {
@@ -15,7 +17,7 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
     PIN: '#94a3b8',      // Slate 400
     SELECTED: '#ffffff', // White
     BG: '#0b1021',       // Obsidian 900
-    LINK: 'rgba(255, 255, 255, 0.05)',
+    LINK: 'rgba(255, 255, 255, 0.08)',
     PARTICLE: 'rgba(244, 63, 94, 0.4)'
   };
 
@@ -27,38 +29,66 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
     if (node.group === 'TargetBooths') return COLORS.BOOTH;
     if (node.group === 'Addresses') return COLORS.ADDRESS;
     
-    if (node.isHighRisk) return COLORS.GHOST;
+    // High risk voters shown in ghost (rose) color
+    if ((node.riskScore || 0) >= 0.5) return COLORS.GHOST;
     return COLORS.VOTER;
   };
 
   const getRadius = (node) => {
     if (node.group === 'Pins') return 7;
-    if (node.group === 'TargetBooths') return 9;
-    if (node.group === 'Addresses') return 6;
-    return 3.5; 
+    if (node.group === 'TargetBooths') return 10;
+    if (node.group === 'Addresses') return 8;
+    if ((node.riskScore || 0) >= 0.5) return 5;
+    return 4; 
   };
 
+  // Track container size with ResizeObserver
   useEffect(() => {
-    if (graphRef.current) {
-      // Stronger repulsive force for 1000+ nodes to ensure visibility
-      graphRef.current.d3Force('charge').strength(-3000); 
-      graphRef.current.d3Force('link').distance(120);
-      graphRef.current.d3Force('center').strength(1.2); 
+    const container = containerRef.current;
+    if (!container) return;
 
-      // Warm up ticks to pre-calculate layout and avoid 'explosion'
+    const updateSize = () => {
+      const { width, height } = container.getBoundingClientRect();
+      if (width > 0 && height > 0) {
+        setDimensions({ width, height });
+      }
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  // Configure forces and zoom-to-fit when data changes
+  useEffect(() => {
+    if (graphRef.current && graphData.nodes.length > 0) {
+      // Tune forces for our dataset size (~40-100 nodes)
+      graphRef.current.d3Force('charge').strength(-250); 
+      graphRef.current.d3Force('link').distance(50);
+      if (graphRef.current.d3Force('center')) {
+        graphRef.current.d3Force('center').strength(0.8);
+      }
+
       graphRef.current.d3ReheatSimulation();
       
-      const timer = setTimeout(() => {
-        // Robust fitting and centering after simulation stabilizes
-        graphRef.current.zoomToFit(1200, 200);
-      }, 1000);
+      // Multiple zoom-to-fit attempts to reliably center the graph
+      const t1 = setTimeout(() => {
+        if (graphRef.current) graphRef.current.zoomToFit(400, 60);
+      }, 300);
+      const t2 = setTimeout(() => {
+        if (graphRef.current) graphRef.current.zoomToFit(600, 60);
+      }, 1200);
+      const t3 = setTimeout(() => {
+        if (graphRef.current) graphRef.current.zoomToFit(800, 60);
+      }, 2500);
 
-      return () => clearTimeout(timer);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
     }
   }, [graphData]);
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-transparent cursor-crosshair">
+    <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-transparent cursor-crosshair">
       {/* ── Corner Intelligence HUD ── */}
       <div className="absolute inset-0 pointer-events-none z-10">
         {/* Top Right: System Metrics */}
@@ -144,13 +174,15 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
       <ForceGraph2D
         ref={graphRef}
         graphData={graphData}
+        width={dimensions.width}
+        height={dimensions.height}
         backgroundColor="transparent"
-        warmupTicks={200}
-        cooldownTicks={150}
-        minZoom={0.1} // Allow zooming out very far to see the 1000-node network
+        warmupTicks={50}
+        cooldownTicks={100}
+        minZoom={0.1}
         maxZoom={15}
-        d3AlphaDecay={0.02}
-        d3VelocityDecay={0.4} // Faster cooling for stability
+        d3AlphaDecay={0.03}
+        d3VelocityDecay={0.4}
         nodeLabel={(node) => `
           <div style="
             background: rgba(11, 16, 33, 0.95); 
@@ -173,7 +205,7 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
               <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0;"></div>
               <div style="display: flex; align-items: center; justify-content: space-between;">
                 <span style="font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Confidence</span>
-                <span style="font-size: 11px; font-weight: 900; color: ${node.isHighRisk ? '#f43f5e' : '#60a5fa'}">
+                <span style="font-size: 11px; font-weight: 900; color: ${(node.riskScore || 0) >= 0.5 ? '#f43f5e' : '#60a5fa'}">
                   ${Math.round(node.riskScore * 100)}% Match
                 </span>
               </div>
@@ -196,7 +228,15 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
           const color = getColor(node);
           const isSelected = selectedNode && selectedNode.id === node.id;
 
-          // Clean, sharp nodes for Big Data (no heavy shadows at high node counts)
+          // Node glow for high-risk voters
+          if ((node.riskScore || 0) >= 0.5) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, r + 3, 0, 2 * Math.PI, false);
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.15)';
+            ctx.fill();
+          }
+
+          // Main node
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
           ctx.fillStyle = color;
@@ -211,16 +251,18 @@ const NetworkGraph = ({ graphData, onNodeClick, selectedNode }) => {
             ctx.stroke();
           }
 
-          // Optimized Labels
-          const isHighRisk = (node.riskScore || 0) > 0.95;
-          const shouldShowLabel = globalScale > 5 || isHighRisk || isSelected;
+          // Labels
+          const isHighRisk = (node.riskScore || 0) > 0.8;
+          const isBooth = node.group === 'TargetBooths';
+          const isAddress = node.group === 'Addresses';
+          const shouldShowLabel = globalScale > 3 || isHighRisk || isSelected || isBooth || isAddress;
 
           if (shouldShowLabel) {
-            const labelSize = 10 / globalScale;
-            ctx.font = `${(isHighRisk || isSelected) ? '900' : '700'} ${labelSize}px Inter`;
+            const labelSize = Math.max(10 / globalScale, 2);
+            ctx.font = `${(isHighRisk || isSelected || isBooth) ? '900' : '700'} ${labelSize}px Inter`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillStyle = isSelected ? '#ffffff' : isHighRisk ? '#f43f5e' : '#94a3b8';
+            ctx.fillStyle = isSelected ? '#ffffff' : isHighRisk ? '#f43f5e' : isBooth ? '#60a5fa' : isAddress ? '#a78bfa' : '#94a3b8';
             ctx.fillText(node.name, node.x, node.y + r + 3 / globalScale);
           }
         }}

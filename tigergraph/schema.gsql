@@ -12,7 +12,7 @@ CREATE VERTEX Voter (
   gender STRING,
   epic_number STRING,
   phone_hash STRING,
-  aadhaar_linked BOOL DEFAULT false,
+  aadhaar_linked BOOL DEFAULT "false",
   registration_date DATETIME,
   added_date STRING,
   constituency STRING,
@@ -32,7 +32,7 @@ CREATE VERTEX Address (
   pagerank_score FLOAT DEFAULT 0.0,
   voter_density INT DEFAULT 0,
   state STRING,
-  density_flag BOOL DEFAULT false
+  density_flag BOOL DEFAULT "false"
 ) WITH primary_id_as_attribute="true"
 
 CREATE VERTEX Booth (
@@ -42,7 +42,7 @@ CREATE VERTEX Booth (
   state STRING,
   total_voters INT DEFAULT 0,
   anomaly_score FLOAT DEFAULT 0.0,
-  overnight_flag BOOL DEFAULT false
+  overnight_flag BOOL DEFAULT "false"
 ) WITH primary_id_as_attribute="true"
 
 CREATE VERTEX Constituency (

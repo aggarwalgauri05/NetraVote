@@ -144,7 +144,7 @@ CREATE QUERY detect_multi_booth(STRING constituency) FOR GRAPH vote {
 
   BoothMemberships = SELECT v
     FROM Voters:v -(ASSIGNED_TO:e)-> Booth:b2
-    ACCUM @@voter_booths += GROUP(v, b2);
+    ACCUM @@voter_booths += (v -> b2);
 
   /* Filter voters attached to >1 booth */
   FOREACH (v, booth_set) IN @@voter_booths DO
